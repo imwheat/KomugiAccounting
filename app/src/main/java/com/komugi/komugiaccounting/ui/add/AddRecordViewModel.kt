@@ -14,6 +14,8 @@ class AddRecordViewModel(private val repository: AppDataRepository) {
     val data: StateFlow<AppData> = repository.data
 
     fun addMember(name: String) = repository.addMember(name)
+    fun deleteRecord(recordId: String) = repository.deleteRecord(recordId)
+    fun setRecordRefunded(recordId: String, refunded: Boolean) = repository.setRecordRefunded(recordId, refunded)
 
     fun saveTemplate(
         type: RecordType,

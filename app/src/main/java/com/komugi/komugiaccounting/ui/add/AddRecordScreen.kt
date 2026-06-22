@@ -80,12 +80,14 @@ fun AddRecordScreen(
     var showDateTimePicker by rememberSaveable { mutableStateOf(false) }
     var showNumberKeyboard by rememberSaveable { mutableStateOf(false) }
     var showCategoryPicker by rememberSaveable { mutableStateOf(false) }
+    var pendingDelete by rememberSaveable { mutableStateOf(false) }
 
     fun hideNumberKeyboard() {
         showNumberKeyboard = false
         focusManager.clearFocus()
     }
 
+    val editingRecord = recordId?.let { id -> data.records.firstOrNull { it.id == id } }
     val typeCategories = data.categories.filter { it.enabled && it.type == type }.sortedBy { it.sortOrder }
     val selectedCategory = typeCategories.firstOrNull { it.id == selectedCategoryId }
     val members = data.members.filter { it.enabled }
@@ -102,6 +104,7 @@ fun AddRecordScreen(
         if (recordId != loadedRecordId) {
             val record = viewModel.record(recordId)
             loadedRecordId = recordId
+            pendingDelete = false
             if (record == null) {
                 type = RecordType.EXPENSE
                 topTab = AddTopTab.EXPENSE
@@ -144,6 +147,7 @@ fun AddRecordScreen(
         type = nextType
         topTab = if (nextType == RecordType.EXPENSE) AddTopTab.EXPENSE else AddTopTab.INCOME
         showCategoryPicker = false
+        pendingDelete = false
         error = null
         message = null
     }
@@ -157,6 +161,7 @@ fun AddRecordScreen(
         selectedMemberId = template.memberId
         remark = template.remark
         showCategoryPicker = false
+        pendingDelete = false
         error = null
         message = null
     }
@@ -199,6 +204,7 @@ fun AddRecordScreen(
                         onClick = {
                             hideNumberKeyboard()
                             topTab = AddTopTab.TEMPLATE
+                            pendingDelete = false
                         },
                         label = { Text("模板") }
                     )
@@ -217,6 +223,8 @@ fun AddRecordScreen(
             } else {
                 recordFormItems(
                     recordId = recordId,
+                    isRefunded = editingRecord?.isRefunded == true,
+                    pendingDelete = pendingDelete,
                     amount = amount,
                     onAmountChange = { amount = it },
                     showNumberKeyboard = showNumberKeyboard,
@@ -245,6 +253,7 @@ fun AddRecordScreen(
                     error = error,
                     onSaveTemplate = {
                         hideNumberKeyboard()
+                        pendingDelete = false
                         message = null
                         error = viewModel.saveTemplate(type, amount, selectedCategoryId, selectedMemberId, remark)
                         if (error == null) message = "已存为模板"
@@ -262,6 +271,7 @@ fun AddRecordScreen(
                     },
                     onSave = {
                         hideNumberKeyboard()
+                        pendingDelete = false
                         message = null
                         error = viewModel.saveRecord(type, amount, selectedCategoryId, selectedMemberId, dateTime, remark, recordId)
                         if (error == null) {
@@ -269,6 +279,22 @@ fun AddRecordScreen(
                             remark = ""
                             dateTime = DateTimeUtil.formatDateTime(DateTimeUtil.now())
                             onSaved(if (recordId == null) "保存成功" else "修改已保存")
+                        }
+                    },
+                    onToggleRefund = {
+                        val id = recordId ?: return@recordFormItems
+                        hideNumberKeyboard()
+                        pendingDelete = false
+                        viewModel.setRecordRefunded(id, editingRecord?.isRefunded != true)
+                    },
+                    onDelete = {
+                        val id = recordId ?: return@recordFormItems
+                        hideNumberKeyboard()
+                        if (pendingDelete) {
+                            viewModel.deleteRecord(id)
+                            onSaved("记录已删除")
+                        } else {
+                            pendingDelete = true
                         }
                     }
                 )
@@ -291,6 +317,8 @@ fun AddRecordScreen(
 
 private fun LazyListScope.recordFormItems(
     recordId: String?,
+    isRefunded: Boolean,
+    pendingDelete: Boolean,
     amount: String,
     onAmountChange: (String) -> Unit,
     showNumberKeyboard: Boolean,
@@ -310,7 +338,9 @@ private fun LazyListScope.recordFormItems(
     error: String?,
     onSaveTemplate: () -> Unit,
     onSaveAndContinue: () -> Unit,
-    onSave: () -> Unit
+    onSave: () -> Unit,
+    onToggleRefund: () -> Unit,
+    onDelete: () -> Unit
 ) {
     item {
         val amountFocusRequester = remember { FocusRequester() }
@@ -393,6 +423,19 @@ private fun LazyListScope.recordFormItems(
                         OutlinedButton(modifier = Modifier.weight(1f), onClick = onSaveAndContinue) { Text("保存并继续") }
                     }
                     Button(modifier = Modifier.weight(1f), onClick = onSave) { Text(if (recordId == null) "完成保存" else "保存修改") }
+                }
+                if (recordId != null) {
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        OutlinedButton(modifier = Modifier.weight(1f), onClick = onToggleRefund) {
+                            Text(if (isRefunded) "取消退款" else "退款")
+                        }
+                        OutlinedButton(modifier = Modifier.weight(1f), onClick = onDelete) {
+                            Text(if (pendingDelete) "确认删除" else "删除")
+                        }
+                    }
+                    if (pendingDelete) {
+                        Text("再次点击确认删除。", color = MaterialTheme.colorScheme.error)
+                    }
                 }
             }
         }

@@ -10,7 +10,6 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
@@ -32,7 +31,6 @@ fun RecordItem(
     category: Category?,
     member: Member?,
     onClick: (() -> Unit)? = null,
-    onToggleRefund: (() -> Unit)? = null,
     modifier: Modifier = Modifier
 ) {
     val isIncome = record.type == RecordType.INCOME
@@ -59,11 +57,6 @@ fun RecordItem(
                 Text("$sign${AmountUtil.format(record.amount)}", color = color, fontWeight = FontWeight.Black, fontSize = 18.sp)
                 if (record.isRefunded) {
                     Text("已退款", color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 12.sp)
-                }
-                onToggleRefund?.let { toggleRefund ->
-                    OutlinedButton(onClick = toggleRefund) {
-                        Text(if (record.isRefunded) "取消退款" else "退款")
-                    }
                 }
             }
         }

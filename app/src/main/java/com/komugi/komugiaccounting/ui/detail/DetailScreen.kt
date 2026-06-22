@@ -1,14 +1,11 @@
 package com.komugi.komugiaccounting.ui.detail
 
-import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
@@ -17,25 +14,18 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
-import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
-import androidx.compose.material3.SwipeToDismissBox
-import androidx.compose.material3.SwipeToDismissBoxValue
 import androidx.compose.material3.Text
-import androidx.compose.material3.rememberSwipeToDismissBoxState
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
-import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
@@ -53,7 +43,7 @@ import com.komugi.komugiaccounting.util.AmountUtil
 import com.komugi.komugiaccounting.util.DateTimeUtil
 import java.util.Calendar
 
-@OptIn(ExperimentalLayoutApi::class, ExperimentalMaterial3Api::class)
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
 fun DetailScreen(
     viewModel: DetailViewModel,
@@ -72,7 +62,6 @@ fun DetailScreen(
     var startDate by rememberSaveable { mutableStateOf("") }
     var endDate by rememberSaveable { mutableStateOf("") }
     var sortMode by rememberSaveable { mutableStateOf(SortMode.TIME_DESC) }
-    var pendingDeleteId by rememberSaveable { mutableStateOf<String?>(null) }
 
     val minAmountCents = minAmount.takeIf { it.isNotBlank() }?.let { AmountUtil.parseToCents(it) }
     val maxAmountCents = maxAmount.takeIf { it.isNotBlank() }?.let { AmountUtil.parseToCents(it) }
@@ -167,22 +156,11 @@ fun DetailScreen(
                     DayHeader(dayStart = dayStart, records = records)
                 }
                 items(records, key = { it.id }) { record ->
-                    SwipeableRecordRow(
+                    RecordItem(
                         record = record,
                         category = categories[record.categoryId],
                         member = members[record.memberId],
-                        pendingDelete = pendingDeleteId == record.id,
-                        onSwipeDelete = { pendingDeleteId = record.id },
-                        onEdit = { onEditRecord(record.id) },
-                        onToggleRefund = { viewModel.setRecordRefunded(record.id, !record.isRefunded) },
-                        onDelete = {
-                            if (pendingDeleteId == record.id) {
-                                viewModel.deleteRecord(record.id)
-                                pendingDeleteId = null
-                            } else {
-                                pendingDeleteId = record.id
-                            }
-                        }
+                        onClick = { onEditRecord(record.id) }
                     )
                 }
             }
@@ -304,66 +282,6 @@ private fun FilterPanel(
             }
             filterError?.let { Text(it, color = MaterialTheme.colorScheme.error) }
             OutlinedButton(onClick = onClear) { Text("清空筛选") }
-        }
-    }
-}
-
-@OptIn(ExperimentalMaterial3Api::class)
-@Composable
-private fun SwipeableRecordRow(
-    record: TransactionRecord,
-    category: Category?,
-    member: Member?,
-    pendingDelete: Boolean,
-    onSwipeDelete: () -> Unit,
-    onEdit: () -> Unit,
-    onToggleRefund: () -> Unit,
-    onDelete: () -> Unit
-) {
-    val dismissState = rememberSwipeToDismissBoxState()
-
-    LaunchedEffect(dismissState.currentValue) {
-        if (dismissState.currentValue == SwipeToDismissBoxValue.EndToStart) {
-            onSwipeDelete()
-            dismissState.snapTo(SwipeToDismissBoxValue.Settled)
-        }
-    }
-
-    SwipeToDismissBox(
-        state = dismissState,
-        enableDismissFromStartToEnd = false,
-        backgroundContent = {
-            Box(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .background(Color(0xFFB3542E)),
-                contentAlignment = Alignment.CenterEnd
-            ) {
-                Text(
-                    "删除",
-                    color = Color.White,
-                    fontWeight = FontWeight.Bold,
-                    modifier = Modifier.padding(horizontal = 20.dp)
-                )
-            }
-        }
-    ) {
-        Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            RecordItem(
-                record = record,
-                category = category,
-                member = member,
-                onClick = onEdit,
-                onToggleRefund = onToggleRefund
-            )
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                OutlinedButton(onClick = onDelete) {
-                    Text(if (pendingDelete) "确认删除" else "删除")
-                }
-                if (pendingDelete) {
-                    Text("左滑后请确认删除", color = MaterialTheme.colorScheme.error, modifier = Modifier.padding(top = 10.dp))
-                }
-            }
         }
     }
 }

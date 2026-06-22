@@ -24,7 +24,6 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.komugi.komugiaccounting.data.model.TransactionRecord
 import com.komugi.komugiaccounting.ui.components.RecordItem
 import com.komugi.komugiaccounting.ui.components.StatCard
 import com.komugi.komugiaccounting.data.repository.AppDataRepository
@@ -60,8 +59,7 @@ fun HomeScreen(
         when (page) {
             0 -> HomeOverviewScreen(
                 viewModel = homeViewModel,
-                onEditRecord = onEditRecord,
-                onToggleRefund = { record -> repository.setRecordRefunded(record.id, !record.isRefunded) }
+                onEditRecord = onEditRecord
             )
             1 -> DetailScreen(viewModel = detailViewModel, onEditRecord = onEditRecord)
             2 -> ChartScreen(repository = repository)
@@ -74,7 +72,6 @@ fun HomeScreen(
 private fun HomeOverviewScreen(
     viewModel: HomeViewModel,
     onEditRecord: (String) -> Unit,
-    onToggleRefund: (TransactionRecord) -> Unit,
     modifier: Modifier = Modifier
 ) {
     val data by viewModel.data.collectAsState()
@@ -129,8 +126,7 @@ private fun HomeOverviewScreen(
                     record = record,
                     category = categories[record.categoryId],
                     member = members[record.memberId],
-                    onClick = { onEditRecord(record.id) },
-                    onToggleRefund = { onToggleRefund(record) }
+                    onClick = { onEditRecord(record.id) }
                 )
             }
         }
