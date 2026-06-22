@@ -6,7 +6,7 @@ import java.util.Date
 import java.util.Locale
 
 object DateTimeUtil {
-    private val dateFormat = SimpleDateFormat("yyyy-MM-dd", Locale.CHINA)
+    private val dateFormat = SimpleDateFormat("yyyy-MM-dd", Locale.CHINA).apply { isLenient = false }
     private val timeFormat = SimpleDateFormat("HH:mm", Locale.CHINA)
     private val dateTimeFormat = SimpleDateFormat("yyyy-MM-dd HH:mm", Locale.CHINA).apply { isLenient = false }
     private val displayDateTimeFormat = SimpleDateFormat("yyyy年MM月dd日 HH:mm", Locale.CHINA)
