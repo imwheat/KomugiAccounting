@@ -7,6 +7,7 @@ data class Category(
     val iconName: String,
     val color: String,
     val sortOrder: Int,
+    val groupName: String = "",
     val enabled: Boolean = true,
     val isSystem: Boolean = false
 )

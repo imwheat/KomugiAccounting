@@ -5,5 +5,6 @@ data class AppSettings(
     val lastExpenseCategoryId: String? = null,
     val lastIncomeCategoryId: String? = null,
     val lastMemberId: String? = null,
+    val recentCategoryIds: List<String> = emptyList(),
     val currencySymbol: String = "￥"
 )

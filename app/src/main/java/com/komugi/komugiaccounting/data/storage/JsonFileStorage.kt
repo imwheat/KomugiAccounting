@@ -41,7 +41,7 @@ class JsonFileStorage(private val context: Context) {
         categories = DefaultData.categories,
         members = DefaultData.members,
         settings = AppSettings(
-            lastExpenseCategoryId = "cat-lunch",
+            lastExpenseCategoryId = "cat-meals",
             lastIncomeCategoryId = "cat-salary",
             lastMemberId = "mem-self"
         )
@@ -49,13 +49,44 @@ class JsonFileStorage(private val context: Context) {
 
     private fun AppData.ensureDefaults(): AppData {
         val systemMemberIds = DefaultData.members.map { it.id }.toSet()
+        val defaultCategoryIds = DefaultData.categories.map { it.id }.toSet()
+        val legacySystemCategoryIds = setOf(
+            "cat-transport",
+            "cat-snack",
+            "cat-breakfast",
+            "cat-lunch",
+            "cat-dinner",
+            "cat-entertainment",
+            "cat-express",
+            "cat-daily",
+            "cat-rent",
+            "cat-utility",
+            "cat-expense-other",
+            "cat-salary",
+            "cat-bonus",
+            "cat-transfer",
+            "cat-investment",
+            "cat-parttime",
+            "cat-refund",
+            "cat-income-other"
+        )
+        val customCategories = categories
+            .filterNot { it.isSystem || it.id in legacySystemCategoryIds || it.id in defaultCategoryIds }
+        val migratedCategories = DefaultData.categories + customCategories
         return copy(
-            categories = if (categories.isEmpty()) DefaultData.categories else categories,
+            records = records.map { record -> record.copy(categoryId = migrateCategoryId(record.categoryId)) },
+            categories = if (categories.isEmpty()) DefaultData.categories else migratedCategories,
             members = if (members.isEmpty()) {
                 DefaultData.members
             } else {
                 members.map { member -> if (member.id in systemMemberIds) member.copy(isSystem = true) else member }
-            }
+            },
+            templates = templates.map { template -> template.copy(categoryId = migrateCategoryId(template.categoryId)) },
+            settings = settings.copy(
+                lastExpenseCategoryId = settings.lastExpenseCategoryId?.let(::migrateCategoryId),
+                lastIncomeCategoryId = settings.lastIncomeCategoryId?.let(::migrateCategoryId),
+                recentCategoryIds = settings.recentCategoryIds.map(::migrateCategoryId).distinct().take(10)
+            )
         )
     }
 
@@ -87,6 +118,7 @@ class JsonFileStorage(private val context: Context) {
         put("iconName", category.iconName)
         put("color", category.color)
         put("sortOrder", category.sortOrder)
+        put("groupName", category.groupName)
         put("enabled", category.enabled)
         put("isSystem", category.isSystem)
     }
@@ -115,6 +147,7 @@ class JsonFileStorage(private val context: Context) {
         put("lastExpenseCategoryId", settings.lastExpenseCategoryId)
         put("lastIncomeCategoryId", settings.lastIncomeCategoryId)
         put("lastMemberId", settings.lastMemberId)
+        put("recentCategoryIds", JSONArray().apply { settings.recentCategoryIds.forEach { put(it) } })
         put("currencySymbol", settings.currencySymbol)
     }
 
@@ -146,6 +179,7 @@ class JsonFileStorage(private val context: Context) {
         iconName = json.optString("iconName", ""),
         color = json.optString("color", "#BDBDBD"),
         sortOrder = json.optInt("sortOrder", 0),
+        groupName = json.optString("groupName", legacyGroupName(json.optString("name", ""))),
         enabled = json.optBoolean("enabled", true),
         isSystem = json.optBoolean("isSystem", false)
     )
@@ -174,6 +208,7 @@ class JsonFileStorage(private val context: Context) {
         lastExpenseCategoryId = json.optNullableString("lastExpenseCategoryId"),
         lastIncomeCategoryId = json.optNullableString("lastIncomeCategoryId"),
         lastMemberId = json.optNullableString("lastMemberId"),
+        recentCategoryIds = json.optJSONArray("recentCategoryIds").stringList(),
         currencySymbol = json.optString("currencySymbol", "￥")
     )
 
@@ -184,4 +219,38 @@ class JsonFileStorage(private val context: Context) {
 
     private fun JSONObject.optNullableString(name: String): String? =
         if (!has(name) || isNull(name)) null else optString(name)
+
+    private fun JSONArray?.stringList(): List<String> {
+        if (this == null) return emptyList()
+        return (0 until length()).mapNotNull { optString(it).takeIf(String::isNotBlank) }
+    }
+
+    private fun migrateCategoryId(categoryId: String): String = when (categoryId) {
+        "cat-breakfast", "cat-lunch", "cat-dinner" -> "cat-meals"
+        "cat-transport" -> "cat-public-transport"
+        "cat-utility" -> "cat-utility"
+        "cat-express" -> "cat-express"
+        "cat-expense-other" -> "cat-expense-other"
+        "cat-salary" -> "cat-salary"
+        "cat-bonus" -> "cat-bonus"
+        "cat-transfer" -> "cat-income-other"
+        "cat-investment" -> "cat-investment"
+        "cat-parttime" -> "cat-parttime"
+        "cat-refund" -> "cat-income-other"
+        "cat-income-other" -> "cat-income-other"
+        else -> categoryId
+    }
+
+    private fun legacyGroupName(categoryName: String): String = when (categoryName) {
+        "早餐", "午餐", "晚餐", "早午晚餐", "零食", "饮料", "水果" -> "食品酒水"
+        "交通", "公共交通", "打车", "私家车费" -> "行车交通"
+        "日用品", "水电", "水电煤气", "房租", "物业管理", "维修保养", "清洁费" -> "居家物业"
+        "邮寄", "邮寄费", "手机费", "网费" -> "交流通讯"
+        "休闲娱乐", "Steam", "氪金", "酒店" -> "休闲娱乐"
+        "衣服裤子", "鞋帽包包", "护肤品", "化妆品" -> "衣服饰品"
+        "其他", "其他支出", "意外丢失" -> "其他杂项"
+        "工资", "工资收入", "加班收入", "奖金", "奖金收入", "兼职", "兼职收入", "经营所得" -> "职业收入"
+        "投资收入", "利息收入", "红包", "中奖", "其他收入" -> "其他收入"
+        else -> ""
+    }
 }

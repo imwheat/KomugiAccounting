@@ -1,11 +1,9 @@
 package com.komugi.komugiaccounting.ui.category
 
-import androidx.compose.foundation.gestures.detectDragGesturesAfterLongPress
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -19,10 +17,8 @@ import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -30,14 +26,11 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import com.komugi.komugiaccounting.data.model.Category
 import com.komugi.komugiaccounting.data.model.RecordType
 import com.komugi.komugiaccounting.data.repository.AppDataRepository
-import kotlin.math.roundToInt
 
 @Composable
 fun CategoryScreen(
@@ -49,24 +42,10 @@ fun CategoryScreen(
     var selectedType by rememberSaveable { mutableStateOf(RecordType.EXPENSE) }
     var newName by rememberSaveable { mutableStateOf("") }
     var message by rememberSaveable { mutableStateOf<String?>(null) }
-    var draggedId by rememberSaveable { mutableStateOf<String?>(null) }
-    var dragOffset by remember { mutableFloatStateOf(0f) }
-    var orderedIds by rememberSaveable { mutableStateOf(emptyList<String>()) }
     val editingNames = remember { mutableStateMapOf<String, String>() }
-    val sortedCategories = data.categories
+    val categories = data.categories
         .filter { it.type == selectedType }
-        .sortedWith(compareBy({ it.sortOrder }, { it.name }))
-
-    LaunchedEffect(selectedType, sortedCategories.map { it.id }) {
-        val currentIds = sortedCategories.map { it.id }
-        if (draggedId == null && orderedIds != currentIds) {
-            orderedIds = currentIds
-        }
-    }
-
-    val categoryById = sortedCategories.associateBy { it.id }
-    val categories = orderedIds.mapNotNull { categoryById[it] }
-    val itemHeightPx = 132f
+        .sortedWith(compareBy<Category> { it.sortOrder }.thenBy { it.groupName }.thenBy { it.name })
 
     LazyColumn(
         modifier = modifier.padding(18.dp),
@@ -85,7 +64,6 @@ fun CategoryScreen(
                     onClick = {
                         selectedType = RecordType.EXPENSE
                         message = null
-                        draggedId = null
                     },
                     label = { Text("支出分类") }
                 )
@@ -94,7 +72,6 @@ fun CategoryScreen(
                     onClick = {
                         selectedType = RecordType.INCOME
                         message = null
-                        draggedId = null
                     },
                     label = { Text("收入分类") }
                 )
@@ -122,15 +99,11 @@ fun CategoryScreen(
                 }
             }
         }
-        item {
-            Text("长按分类卡片可拖动排序。", color = MaterialTheme.colorScheme.onSurfaceVariant)
-        }
         message?.let {
             item { Text(it, color = MaterialTheme.colorScheme.error, modifier = Modifier.padding(horizontal = 4.dp)) }
         }
         items(categories, key = { it.id }) { category ->
             val index = categories.indexOfFirst { it.id == category.id }
-            val offsetY = if (draggedId == category.id) dragOffset.roundToInt() else 0
             CategoryRow(
                 category = category,
                 index = index,
@@ -155,40 +128,7 @@ fun CategoryScreen(
                 },
                 onDelete = {
                     message = repository.deleteCategory(category.id) ?: "分类已删除"
-                },
-                modifier = Modifier
-                    .offset { IntOffset(0, offsetY) }
-                    .pointerInput(categories, draggedId) {
-                        detectDragGesturesAfterLongPress(
-                            onDragStart = {
-                                draggedId = category.id
-                                dragOffset = 0f
-                            },
-                            onDragEnd = {
-                                draggedId = null
-                                dragOffset = 0f
-                                repository.reorderCategories(selectedType, orderedIds)
-                                message = null
-                            },
-                            onDragCancel = {
-                                draggedId = null
-                                dragOffset = 0f
-                                orderedIds = sortedCategories.map { it.id }
-                            },
-                            onDrag = { change, dragAmount ->
-                                change.consume()
-                                if (draggedId != category.id) return@detectDragGesturesAfterLongPress
-                                dragOffset += dragAmount.y
-                                val currentIndex = orderedIds.indexOf(category.id)
-                                if (currentIndex < 0) return@detectDragGesturesAfterLongPress
-                                val targetIndex = (currentIndex + (dragOffset / itemHeightPx).roundToInt()).coerceIn(0, orderedIds.lastIndex)
-                                if (targetIndex != currentIndex) {
-                                    orderedIds = orderedIds.move(currentIndex, targetIndex)
-                                    dragOffset = 0f
-                                }
-                            }
-                        )
-                    }
+                }
             )
         }
     }
@@ -205,12 +145,12 @@ private fun CategoryRow(
     onEnabledChange: (Boolean) -> Unit,
     onMoveUp: () -> Unit,
     onMoveDown: () -> Unit,
-    onDelete: () -> Unit,
-    modifier: Modifier = Modifier
+    onDelete: () -> Unit
 ) {
-    Card(modifier = modifier, colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)) {
+    Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)) {
         Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
             Text(if (category.isSystem) "系统预置分类" else "自定义分类", color = MaterialTheme.colorScheme.onSurfaceVariant)
+            Text("分组：${category.groupName.ifBlank { "未分组" }}", color = MaterialTheme.colorScheme.onSurfaceVariant)
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                 OutlinedTextField(
                     value = editName,
@@ -239,12 +179,4 @@ private fun CategoryRow(
             }
         }
     }
-}
-
-private fun List<String>.move(from: Int, to: Int): List<String> {
-    if (from == to) return this
-    val mutable = toMutableList()
-    val item = mutable.removeAt(from)
-    mutable.add(to, item)
-    return mutable
 }

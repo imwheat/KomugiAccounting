@@ -26,8 +26,12 @@ fun DateTimePickerDialog(
     onConfirm: (String) -> Unit
 ) {
     val initialParts = initialValue.split(" ")
-    var date by rememberSaveable(initialValue) { mutableStateOf(initialParts.getOrNull(0) ?: DateTimeUtil.formatDate(DateTimeUtil.now())) }
-    var time by rememberSaveable(initialValue) { mutableStateOf(initialParts.getOrNull(1) ?: DateTimeUtil.formatTime(DateTimeUtil.now())) }
+    var date by rememberSaveable(initialValue) {
+        mutableStateOf(initialParts.getOrNull(0) ?: DateTimeUtil.formatDate(DateTimeUtil.now()))
+    }
+    var time by rememberSaveable(initialValue) {
+        mutableStateOf(initialParts.getOrNull(1) ?: DateTimeUtil.formatTime(DateTimeUtil.now()))
+    }
     val combined = "$date $time"
     val error = combined.takeIf { DateTimeUtil.parseDateTime(it) == null }?.let { "格式应为 yyyy-MM-dd HH:mm" }
 

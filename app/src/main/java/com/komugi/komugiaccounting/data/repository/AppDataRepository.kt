@@ -29,7 +29,10 @@ class AppDataRepository private constructor(context: Context) {
             settings = current.settings.copy(
                 lastExpenseCategoryId = if (record.type == RecordType.EXPENSE) record.categoryId else current.settings.lastExpenseCategoryId,
                 lastIncomeCategoryId = if (record.type == RecordType.INCOME) record.categoryId else current.settings.lastIncomeCategoryId,
-                lastMemberId = record.memberId
+                lastMemberId = record.memberId,
+                recentCategoryIds = (listOf(record.categoryId) + current.settings.recentCategoryIds)
+                    .distinct()
+                    .take(10)
             )
         )
     }
@@ -40,7 +43,10 @@ class AppDataRepository private constructor(context: Context) {
             settings = current.settings.copy(
                 lastExpenseCategoryId = if (record.type == RecordType.EXPENSE) record.categoryId else current.settings.lastExpenseCategoryId,
                 lastIncomeCategoryId = if (record.type == RecordType.INCOME) record.categoryId else current.settings.lastIncomeCategoryId,
-                lastMemberId = record.memberId
+                lastMemberId = record.memberId,
+                recentCategoryIds = (listOf(record.categoryId) + current.settings.recentCategoryIds)
+                    .distinct()
+                    .take(10)
             )
         )
     }
@@ -116,6 +122,7 @@ class AppDataRepository private constructor(context: Context) {
                 iconName = "MoreHoriz",
                 color = if (type == RecordType.EXPENSE) "#FF7043" else "#66BB6A",
                 sortOrder = nextOrder,
+                groupName = if (type == RecordType.EXPENSE) "其他杂项" else "收入",
                 isSystem = false
             )
         )
