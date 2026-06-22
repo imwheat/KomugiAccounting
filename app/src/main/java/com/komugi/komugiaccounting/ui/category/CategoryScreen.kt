@@ -103,6 +103,7 @@ fun CategoryScreen(
         }
         items(categories, key = { it.id }) { category ->
             val editName = editingNames.getOrPut(category.id) { category.name }
+            val index = categories.indexOfFirst { it.id == category.id }
             Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)) {
                 Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
                     Text(if (category.isSystem) "系统预置分类" else "自定义分类", color = MaterialTheme.colorScheme.onSurfaceVariant)
@@ -134,6 +135,20 @@ fun CategoryScreen(
                         )
                     }
                     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        OutlinedButton(
+                            enabled = index > 0,
+                            onClick = {
+                                repository.moveCategory(category.id, -1)
+                                message = null
+                            }
+                        ) { Text("上移") }
+                        OutlinedButton(
+                            enabled = index in 0 until categories.lastIndex,
+                            onClick = {
+                                repository.moveCategory(category.id, 1)
+                                message = null
+                            }
+                        ) { Text("下移") }
                         OutlinedButton(onClick = {
                             message = repository.deleteCategory(category.id) ?: "分类已删除"
                         }) { Text("删除") }

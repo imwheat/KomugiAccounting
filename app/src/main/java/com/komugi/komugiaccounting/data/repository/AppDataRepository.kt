@@ -125,6 +125,27 @@ class AppDataRepository private constructor(context: Context) {
         current.copy(categories = current.categories.map { if (it.id == categoryId) it.copy(name = cleanName) else it })
     }
 
+    fun moveCategory(categoryId: String, direction: Int) = update { current ->
+        if (direction == 0) return@update current
+        val category = current.categories.firstOrNull { it.id == categoryId } ?: return@update current
+        val ordered = current.categories
+            .filter { it.type == category.type }
+            .sortedWith(compareBy({ it.sortOrder }, { it.name }))
+        val index = ordered.indexOfFirst { it.id == categoryId }
+        val targetIndex = (index + direction).coerceIn(0, ordered.lastIndex)
+        if (index < 0 || index == targetIndex) return@update current
+        val target = ordered[targetIndex]
+        current.copy(
+            categories = current.categories.map {
+                when (it.id) {
+                    category.id -> it.copy(sortOrder = target.sortOrder)
+                    target.id -> it.copy(sortOrder = category.sortOrder)
+                    else -> it
+                }
+            }
+        )
+    }
+
     fun upsertTemplate(template: Template) = update { current ->
         val cleanName = template.name.trim()
         if (cleanName.isEmpty()) return@update current
