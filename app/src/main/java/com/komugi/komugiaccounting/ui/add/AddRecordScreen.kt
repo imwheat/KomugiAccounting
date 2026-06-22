@@ -15,7 +15,6 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyListScope
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
@@ -29,20 +28,25 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.focus.onFocusChanged
+import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import com.komugi.komugiaccounting.data.model.Category
 import com.komugi.komugiaccounting.data.model.Member
 import com.komugi.komugiaccounting.data.model.RecordType
 import com.komugi.komugiaccounting.data.model.Template
+import com.komugi.komugiaccounting.ui.components.CategoryPickerContent
 import com.komugi.komugiaccounting.ui.components.DateTimePickerDialog
 import com.komugi.komugiaccounting.ui.components.NumberKeyboard
+import com.komugi.komugiaccounting.ui.components.categoryDisplayPath
 import com.komugi.komugiaccounting.util.AmountUtil
 import com.komugi.komugiaccounting.util.DateTimeUtil
 
@@ -62,6 +66,7 @@ fun AddRecordScreen(
     modifier: Modifier = Modifier
 ) {
     val data by viewModel.data.collectAsState()
+    val focusManager = LocalFocusManager.current
     var topTab by rememberSaveable { mutableStateOf(AddTopTab.EXPENSE) }
     var type by rememberSaveable { mutableStateOf(RecordType.EXPENSE) }
     var amount by rememberSaveable { mutableStateOf("") }
@@ -76,15 +81,20 @@ fun AddRecordScreen(
     var showNumberKeyboard by rememberSaveable { mutableStateOf(false) }
     var showCategoryPicker by rememberSaveable { mutableStateOf(false) }
 
+    fun hideNumberKeyboard() {
+        showNumberKeyboard = false
+        focusManager.clearFocus()
+    }
+
     val typeCategories = data.categories.filter { it.enabled && it.type == type }.sortedBy { it.sortOrder }
     val selectedCategory = typeCategories.firstOrNull { it.id == selectedCategoryId }
     val members = data.members.filter { it.enabled }
 
     BackHandler {
-        if (showCategoryPicker) {
-            showCategoryPicker = false
-        } else {
-            onBack()
+        when {
+            showNumberKeyboard -> hideNumberKeyboard()
+            showCategoryPicker -> showCategoryPicker = false
+            else -> onBack()
         }
     }
 
@@ -109,6 +119,7 @@ fun AddRecordScreen(
                 selectedCategoryId = record.categoryId
                 selectedMemberId = record.memberId
             }
+            hideNumberKeyboard()
             error = null
             message = null
         }
@@ -129,6 +140,7 @@ fun AddRecordScreen(
     }
 
     fun selectType(nextType: RecordType) {
+        hideNumberKeyboard()
         type = nextType
         topTab = if (nextType == RecordType.EXPENSE) AddTopTab.EXPENSE else AddTopTab.INCOME
         showCategoryPicker = false
@@ -137,6 +149,7 @@ fun AddRecordScreen(
     }
 
     fun applyTemplate(template: Template) {
+        hideNumberKeyboard()
         type = template.type
         topTab = if (template.type == RecordType.EXPENSE) AddTopTab.EXPENSE else AddTopTab.INCOME
         amount = template.amount?.let { AmountUtil.formatPlain(it) }.orEmpty()
@@ -144,93 +157,124 @@ fun AddRecordScreen(
         selectedMemberId = template.memberId
         remark = template.remark
         showCategoryPicker = false
-        showNumberKeyboard = false
         error = null
         message = null
     }
 
-    LazyColumn(
-        modifier = modifier.padding(horizontal = 18.dp),
-        verticalArrangement = Arrangement.spacedBy(14.dp)
-    ) {
-        item { Spacer(Modifier.height(10.dp)) }
-        item {
-            Row(horizontalArrangement = Arrangement.spacedBy(10.dp), verticalAlignment = Alignment.CenterVertically) {
-                OutlinedButton(onClick = onBack) { Text("返回") }
-                Text(if (recordId == null) "记一笔" else "编辑记录", style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Black)
-            }
-        }
-        item {
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                FilterChip(selected = topTab == AddTopTab.TEMPLATE, onClick = { topTab = AddTopTab.TEMPLATE; showCategoryPicker = false }, label = { Text("模板") })
-                FilterChip(selected = topTab == AddTopTab.EXPENSE, onClick = { selectType(RecordType.EXPENSE) }, label = { Text("支出") })
-                FilterChip(selected = topTab == AddTopTab.INCOME, onClick = { selectType(RecordType.INCOME) }, label = { Text("收入") })
-            }
-        }
-
-        when {
-            topTab == AddTopTab.TEMPLATE -> templateListItems(
-                templates = data.templates,
-                categories = data.categories.associateBy { it.id },
-                members = data.members.associateBy { it.id },
-                onTemplateClick = ::applyTemplate
-            )
-
-            showCategoryPicker -> categoryPickerItems(
-                categories = typeCategories,
-                recentCategoryIds = data.settings.recentCategoryIds,
-                onBack = { showCategoryPicker = false },
-                onSelect = { category ->
-                    selectedCategoryId = category.id
-                    showCategoryPicker = false
+    if (showCategoryPicker) {
+        CategoryPickerContent(
+            categories = typeCategories,
+            recentCategoryIds = data.settings.recentCategoryIds,
+            onBack = { showCategoryPicker = false },
+            onSelect = {
+                selectedCategoryId = it.id
+                showCategoryPicker = false
+            },
+            selectedCategoryIds = setOf(selectedCategoryId),
+            modifier = modifier
+        )
+    } else {
+        LazyColumn(
+            modifier = modifier.padding(horizontal = 18.dp),
+            verticalArrangement = Arrangement.spacedBy(14.dp)
+        ) {
+            item { Spacer(Modifier.height(10.dp)) }
+            item {
+                Row(horizontalArrangement = Arrangement.spacedBy(10.dp), verticalAlignment = Alignment.CenterVertically) {
+                    OutlinedButton(onClick = {
+                        hideNumberKeyboard()
+                        onBack()
+                    }) { Text("返回") }
+                    Text(
+                        if (recordId == null) "记一笔" else "编辑记录",
+                        style = MaterialTheme.typography.headlineMedium,
+                        fontWeight = FontWeight.Black
+                    )
                 }
-            )
-
-            else -> recordFormItems(
-                recordId = recordId,
-                amount = amount,
-                onAmountChange = { amount = it },
-                showNumberKeyboard = showNumberKeyboard,
-                onAmountFocusChange = { showNumberKeyboard = it },
-                selectedCategory = selectedCategory,
-                onOpenCategoryPicker = { showCategoryPicker = true },
-                members = members,
-                selectedMemberId = selectedMemberId,
-                onMemberSelected = { selectedMemberId = it },
-                dateTime = dateTime,
-                onOpenDateTimePicker = { showDateTimePicker = true },
-                remark = remark,
-                onRemarkChange = { remark = it },
-                message = message,
-                error = error,
-                onSaveTemplate = {
-                    message = null
-                    error = viewModel.saveTemplate(type, amount, selectedCategoryId, selectedMemberId, remark)
-                    if (error == null) message = "已存为模板"
-                },
-                onSaveAndContinue = {
-                    message = null
-                    error = viewModel.saveRecord(type, amount, selectedCategoryId, selectedMemberId, dateTime, remark, null)
-                    if (error == null) {
-                        amount = ""
-                        remark = ""
-                        dateTime = DateTimeUtil.formatDateTime(DateTimeUtil.now())
-                        message = "保存成功，可继续记下一笔"
-                    }
-                },
-                onSave = {
-                    message = null
-                    error = viewModel.saveRecord(type, amount, selectedCategoryId, selectedMemberId, dateTime, remark, recordId)
-                    if (error == null) {
-                        amount = ""
-                        remark = ""
-                        dateTime = DateTimeUtil.formatDateTime(DateTimeUtil.now())
-                        onSaved(if (recordId == null) "保存成功" else "修改已保存")
-                    }
+            }
+            item {
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    FilterChip(
+                        selected = topTab == AddTopTab.TEMPLATE,
+                        onClick = {
+                            hideNumberKeyboard()
+                            topTab = AddTopTab.TEMPLATE
+                        },
+                        label = { Text("模板") }
+                    )
+                    FilterChip(selected = topTab == AddTopTab.EXPENSE, onClick = { selectType(RecordType.EXPENSE) }, label = { Text("支出") })
+                    FilterChip(selected = topTab == AddTopTab.INCOME, onClick = { selectType(RecordType.INCOME) }, label = { Text("收入") })
                 }
-            )
+            }
+
+            if (topTab == AddTopTab.TEMPLATE) {
+                templateListItems(
+                    templates = data.templates,
+                    categories = data.categories.associateBy { it.id },
+                    members = data.members.associateBy { it.id },
+                    onTemplateClick = ::applyTemplate
+                )
+            } else {
+                recordFormItems(
+                    recordId = recordId,
+                    amount = amount,
+                    onAmountChange = { amount = it },
+                    showNumberKeyboard = showNumberKeyboard,
+                    onAmountFocusChange = { focused -> showNumberKeyboard = focused },
+                    onDismissNumberKeyboard = { hideNumberKeyboard() },
+                    selectedCategory = selectedCategory,
+                    onOpenCategoryPicker = {
+                        hideNumberKeyboard()
+                        showCategoryPicker = true
+                    },
+                    members = members,
+                    selectedMemberId = selectedMemberId,
+                    onMemberSelected = {
+                        hideNumberKeyboard()
+                        selectedMemberId = it
+                    },
+                    dateTime = dateTime,
+                    onOpenDateTimePicker = {
+                        hideNumberKeyboard()
+                        showDateTimePicker = true
+                    },
+                    remark = remark,
+                    onRemarkChange = { remark = it },
+                    onRemarkFocus = { hideNumberKeyboard() },
+                    message = message,
+                    error = error,
+                    onSaveTemplate = {
+                        hideNumberKeyboard()
+                        message = null
+                        error = viewModel.saveTemplate(type, amount, selectedCategoryId, selectedMemberId, remark)
+                        if (error == null) message = "已存为模板"
+                    },
+                    onSaveAndContinue = {
+                        hideNumberKeyboard()
+                        message = null
+                        error = viewModel.saveRecord(type, amount, selectedCategoryId, selectedMemberId, dateTime, remark, null)
+                        if (error == null) {
+                            amount = ""
+                            remark = ""
+                            dateTime = DateTimeUtil.formatDateTime(DateTimeUtil.now())
+                            message = "保存成功，可继续记下一笔"
+                        }
+                    },
+                    onSave = {
+                        hideNumberKeyboard()
+                        message = null
+                        error = viewModel.saveRecord(type, amount, selectedCategoryId, selectedMemberId, dateTime, remark, recordId)
+                        if (error == null) {
+                            amount = ""
+                            remark = ""
+                            dateTime = DateTimeUtil.formatDateTime(DateTimeUtil.now())
+                            onSaved(if (recordId == null) "保存成功" else "修改已保存")
+                        }
+                    }
+                )
+            }
+            item { Spacer(Modifier.height(88.dp)) }
         }
-        item { Spacer(Modifier.height(88.dp)) }
     }
 
     if (showDateTimePicker) {
@@ -251,6 +295,7 @@ private fun LazyListScope.recordFormItems(
     onAmountChange: (String) -> Unit,
     showNumberKeyboard: Boolean,
     onAmountFocusChange: (Boolean) -> Unit,
+    onDismissNumberKeyboard: () -> Unit,
     selectedCategory: Category?,
     onOpenCategoryPicker: () -> Unit,
     members: List<Member>,
@@ -260,6 +305,7 @@ private fun LazyListScope.recordFormItems(
     onOpenDateTimePicker: () -> Unit,
     remark: String,
     onRemarkChange: (String) -> Unit,
+    onRemarkFocus: () -> Unit,
     message: String?,
     error: String?,
     onSaveTemplate: () -> Unit,
@@ -267,6 +313,8 @@ private fun LazyListScope.recordFormItems(
     onSave: () -> Unit
 ) {
     item {
+        val amountFocusRequester = remember { FocusRequester() }
+
         Card(
             shape = RoundedCornerShape(28.dp),
             colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
@@ -274,22 +322,32 @@ private fun LazyListScope.recordFormItems(
             Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
                 OutlinedTextField(
                     value = amount,
-                    onValueChange = onAmountChange,
+                    onValueChange = {},
                     label = { Text("金额") },
+                    readOnly = true,
                     singleLine = true,
-                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
                     modifier = Modifier
                         .fillMaxWidth()
+                        .focusRequester(amountFocusRequester)
                         .onFocusChanged { onAmountFocusChange(it.isFocused) }
+                        .clickable {
+                            amountFocusRequester.requestFocus()
+                            onAmountFocusChange(true)
+                        }
                 )
                 if (showNumberKeyboard) {
-                    NumberKeyboard(value = amount, onValueChange = onAmountChange)
+                    NumberKeyboard(
+                        value = amount,
+                        onValueChange = onAmountChange,
+                        onDismiss = onDismissNumberKeyboard,
+                        onCancel = onDismissNumberKeyboard
+                    )
                 }
 
                 Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     Text("分类：", fontWeight = FontWeight.SemiBold)
                     OutlinedButton(modifier = Modifier.weight(1f), onClick = onOpenCategoryPicker) {
-                        Text(selectedCategory?.displayPath() ?: "请选择分类")
+                        Text(selectedCategory?.let(::categoryDisplayPath) ?: "请选择分类")
                     }
                 }
 
@@ -323,7 +381,9 @@ private fun LazyListScope.recordFormItems(
                     onValueChange = onRemarkChange,
                     label = { Text("备注") },
                     minLines = 2,
-                    modifier = Modifier.fillMaxWidth()
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .onFocusChanged { if (it.isFocused) onRemarkFocus() }
                 )
                 message?.let { Text(it, color = MaterialTheme.colorScheme.primary) }
                 error?.let { Text(it, color = MaterialTheme.colorScheme.error) }
@@ -336,51 +396,6 @@ private fun LazyListScope.recordFormItems(
                 }
             }
         }
-    }
-}
-
-private fun LazyListScope.categoryPickerItems(
-    categories: List<Category>,
-    recentCategoryIds: List<String>,
-    onBack: () -> Unit,
-    onSelect: (Category) -> Unit
-) {
-    val categoryById = categories.associateBy { it.id }
-    val recentCategories = recentCategoryIds.mapNotNull { categoryById[it] }.take(10)
-    item {
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Text("选择分类", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Black)
-            OutlinedButton(onClick = onBack) { Text("返回") }
-        }
-    }
-    if (recentCategories.isNotEmpty()) {
-        item { Text("最近选择", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold) }
-        items(recentCategories, key = { "recent-${it.id}" }) { category ->
-            CategoryOption(category = category, onClick = { onSelect(category) })
-        }
-    }
-    categories
-        .groupBy { it.groupName.ifBlank { "未分组" } }
-        .toSortedMap(compareBy { groupOrder(it) })
-        .forEach { (group, groupCategories) ->
-            item { Text(group, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold) }
-            items(groupCategories.sortedBy { it.sortOrder }, key = { it.id }) { category ->
-                CategoryOption(category = category, onClick = { onSelect(category) })
-            }
-        }
-}
-
-@Composable
-private fun CategoryOption(category: Category, onClick: () -> Unit) {
-    Card(
-        modifier = Modifier.fillMaxWidth().clickable(onClick = onClick),
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
-    ) {
-        Text(category.displayPath(), modifier = Modifier.padding(14.dp), fontWeight = FontWeight.SemiBold)
     }
 }
 
@@ -407,7 +422,9 @@ private fun LazyListScope.templateSection(
     } else {
         items(templates, key = { it.id }) { template ->
             Card(
-                modifier = Modifier.fillMaxWidth().clickable { onTemplateClick(template) },
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clickable { onTemplateClick(template) },
                 colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
             ) {
                 Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
@@ -416,7 +433,7 @@ private fun LazyListScope.templateSection(
                         Text(template.amount?.let { AmountUtil.format(it) } ?: "金额未固定", color = MaterialTheme.colorScheme.onSurfaceVariant)
                     }
                     Text(
-                        "${categories[template.categoryId]?.displayPath() ?: "未分类"} · ${members[template.memberId]?.name ?: "未知成员"}",
+                        "${categories[template.categoryId]?.let(::categoryDisplayPath) ?: "未分类"} · ${members[template.memberId]?.name ?: "未知成员"}",
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                     if (template.remark.isNotBlank()) Text(template.remark)
@@ -424,23 +441,4 @@ private fun LazyListScope.templateSection(
             }
         }
     }
-}
-
-private fun Category.displayPath(): String =
-    if (groupName.isBlank()) name else "$groupName > $name"
-
-private fun groupOrder(groupName: String): Int = when (groupName) {
-    "食品酒水" -> 1
-    "行车交通" -> 2
-    "居家物业" -> 3
-    "交流通讯" -> 4
-    "休闲娱乐" -> 5
-    "衣服饰品" -> 6
-    "医疗保险" -> 7
-    "金融保险" -> 8
-    "人情往来" -> 9
-    "其他杂项" -> 10
-    "职业收入" -> 11
-    "其他收入" -> 12
-    else -> 99
 }

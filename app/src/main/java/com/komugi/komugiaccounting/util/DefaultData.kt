@@ -26,9 +26,10 @@ object DefaultData {
         expense("cat-express", "邮寄费", "交流通讯", 33, "LocalPostOffice", "#FFA726"),
 
         expense("cat-steam", "Steam", "休闲娱乐", 41, "SportsEsports", "#5C6BC0"),
-        expense("cat-game-pay", "氪金", "休闲娱乐", 42, "VideogameAsset", "#AB47BC"),
-        expense("cat-hotel", "酒店", "休闲娱乐", 43, "Hotel", "#FFA726"),
-        expense("cat-shopping", "购物", "休闲娱乐", 44, "ShoppingBag", "#66BB6A"),
+        expense("cat-game", "游戏", "休闲娱乐", 42, "VideogameAsset", "#42A5F5"),
+        expense("cat-game-pay", "氪金", "休闲娱乐", 43, "VideogameAsset", "#AB47BC"),
+        expense("cat-hotel", "酒店", "休闲娱乐", 44, "Hotel", "#FFA726"),
+        expense("cat-shopping", "购物", "休闲娱乐", 45, "ShoppingBag", "#66BB6A"),
 
         expense("cat-clothes", "衣服裤子", "衣服饰品", 51, "Checkroom", "#EC407A"),
         expense("cat-shoes-bags", "鞋帽包包", "衣服饰品", 52, "ShoppingBag", "#AB47BC"),

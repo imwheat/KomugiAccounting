@@ -48,6 +48,7 @@ import com.komugi.komugiaccounting.data.model.TransactionRecord
 import com.komugi.komugiaccounting.domain.FilterEngine
 import com.komugi.komugiaccounting.domain.StatisticsCalculator
 import com.komugi.komugiaccounting.ui.components.RecordItem
+import com.komugi.komugiaccounting.ui.components.categoryGroupOrder
 import com.komugi.komugiaccounting.util.AmountUtil
 import com.komugi.komugiaccounting.util.DateTimeUtil
 import java.util.Calendar
@@ -135,15 +136,22 @@ fun DetailScreen(
                         modifier = Modifier.fillMaxWidth()
                     )
                     Text("分类", fontWeight = FontWeight.SemiBold)
-                    FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                        data.categories.filter { selectedType == null || it.type == selectedType }.sortedBy { it.sortOrder }.forEach { category ->
-                            FilterChip(
-                                selected = category.id in selectedCategoryIds,
-                                onClick = { selectedCategoryIds = selectedCategoryIds.toggle(category.id) },
-                                label = { Text(category.name) }
-                            )
+                    data.categories
+                        .filter { selectedType == null || it.type == selectedType }
+                        .groupBy { it.groupName.ifBlank { "未分组" } }
+                        .toSortedMap(compareBy { categoryGroupOrder(it) })
+                        .forEach { (groupName, groupCategories) ->
+                            Text(groupName, style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.SemiBold)
+                            FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                                groupCategories.sortedBy { it.sortOrder }.forEach { category ->
+                                    FilterChip(
+                                        selected = category.id in selectedCategoryIds,
+                                        onClick = { selectedCategoryIds = selectedCategoryIds.toggle(category.id) },
+                                        label = { Text(category.name) }
+                                    )
+                                }
+                            }
                         }
-                    }
                     Text("成员", fontWeight = FontWeight.SemiBold)
                     FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
                         data.members.forEach { member ->

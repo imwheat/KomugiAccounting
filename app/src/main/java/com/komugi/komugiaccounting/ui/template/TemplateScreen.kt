@@ -30,9 +30,13 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
+import com.komugi.komugiaccounting.data.model.Category
+import com.komugi.komugiaccounting.data.model.Member
 import com.komugi.komugiaccounting.data.model.RecordType
 import com.komugi.komugiaccounting.data.model.Template
 import com.komugi.komugiaccounting.data.repository.AppDataRepository
+import com.komugi.komugiaccounting.ui.components.CategoryPickerContent
+import com.komugi.komugiaccounting.ui.components.categoryDisplayPath
 import com.komugi.komugiaccounting.util.AmountUtil
 import java.util.UUID
 
@@ -85,8 +89,8 @@ private fun TemplateListScreen(
 ) {
     val data by repository.data.collectAsState()
     var pendingDeleteId by rememberSaveable { mutableStateOf<String?>(null) }
-    val expenseTemplates = data.templates.filter { it.type == RecordType.EXPENSE }.sortedBy { it.name }
-    val incomeTemplates = data.templates.filter { it.type == RecordType.INCOME }.sortedBy { it.name }
+    val categories = data.categories.associateBy { it.id }
+    val members = data.members.associateBy { it.id }
 
     LazyColumn(
         modifier = modifier.padding(18.dp),
@@ -99,17 +103,15 @@ private fun TemplateListScreen(
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Text("模板管理", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Black)
-                Button(onClick = onCreate) {
-                    Text("新建")
-                }
+                Button(onClick = onCreate) { Text("新建") }
             }
         }
         templateSection(
             title = "支出模板",
-            templates = expenseTemplates,
+            templates = data.templates.filter { it.type == RecordType.EXPENSE }.sortedBy { it.name },
             allTemplatesEmpty = data.templates.isEmpty(),
-            categories = data.categories.associateBy { it.id },
-            members = data.members.associateBy { it.id },
+            categories = categories,
+            members = members,
             pendingDeleteId = pendingDeleteId,
             onPendingDeleteChange = { pendingDeleteId = it },
             onEdit = onEdit,
@@ -117,10 +119,10 @@ private fun TemplateListScreen(
         )
         templateSection(
             title = "收入模板",
-            templates = incomeTemplates,
+            templates = data.templates.filter { it.type == RecordType.INCOME }.sortedBy { it.name },
             allTemplatesEmpty = data.templates.isEmpty(),
-            categories = data.categories.associateBy { it.id },
-            members = data.members.associateBy { it.id },
+            categories = categories,
+            members = members,
             pendingDeleteId = pendingDeleteId,
             onPendingDeleteChange = { pendingDeleteId = it },
             onEdit = onEdit,
@@ -133,16 +135,14 @@ private fun androidx.compose.foundation.lazy.LazyListScope.templateSection(
     title: String,
     templates: List<Template>,
     allTemplatesEmpty: Boolean,
-    categories: Map<String, com.komugi.komugiaccounting.data.model.Category>,
-    members: Map<String, com.komugi.komugiaccounting.data.model.Member>,
+    categories: Map<String, Category>,
+    members: Map<String, Member>,
     pendingDeleteId: String?,
     onPendingDeleteChange: (String?) -> Unit,
     onEdit: (Template) -> Unit,
     onDelete: (Template) -> Unit
 ) {
-    item {
-        Text(title, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
-    }
+    item { Text(title, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold) }
     if (templates.isEmpty()) {
         item {
             val text = if (allTemplatesEmpty) "还没有模板，点击右上角新建。" else "暂无$title。"
@@ -152,7 +152,7 @@ private fun androidx.compose.foundation.lazy.LazyListScope.templateSection(
         items(templates, key = { it.id }) { template ->
             TemplateCard(
                 template = template,
-                categoryName = categories[template.categoryId]?.name ?: "未分类",
+                categoryName = categories[template.categoryId]?.let(::categoryDisplayPath) ?: "未分类",
                 memberName = members[template.memberId]?.name ?: "未知成员",
                 pendingDelete = pendingDeleteId == template.id,
                 onEdit = { onEdit(template) },
@@ -211,11 +211,32 @@ private fun TemplateEditScreen(
     var categoryId by rememberSaveable(templateId) { mutableStateOf(editingTemplate?.categoryId.orEmpty()) }
     var memberId by rememberSaveable(templateId) { mutableStateOf(editingTemplate?.memberId.orEmpty()) }
     var error by rememberSaveable(templateId) { mutableStateOf<String?>(null) }
+    var showCategoryPicker by rememberSaveable(templateId) { mutableStateOf(false) }
 
     val typeCategories = data.categories.filter { it.enabled && it.type == type }.sortedBy { it.sortOrder }
+    val selectedCategory = typeCategories.firstOrNull { it.id == categoryId }
     val enabledMembers = data.members.filter { it.enabled }
     if (categoryId.isBlank() || typeCategories.none { it.id == categoryId }) categoryId = typeCategories.firstOrNull()?.id.orEmpty()
     if (memberId.isBlank() || enabledMembers.none { it.id == memberId }) memberId = enabledMembers.firstOrNull()?.id.orEmpty()
+
+    BackHandler(enabled = showCategoryPicker) {
+        showCategoryPicker = false
+    }
+
+    if (showCategoryPicker) {
+        CategoryPickerContent(
+            categories = typeCategories,
+            recentCategoryIds = data.settings.recentCategoryIds,
+            selectedCategoryIds = setOf(categoryId),
+            onBack = { showCategoryPicker = false },
+            onSelect = {
+                categoryId = it.id
+                showCategoryPicker = false
+            },
+            modifier = modifier
+        )
+        return
+    }
 
     LazyColumn(
         modifier = modifier.padding(18.dp),
@@ -249,14 +270,10 @@ private fun TemplateEditScreen(
                         keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
                         modifier = Modifier.fillMaxWidth()
                     )
-                    Text("分类", fontWeight = FontWeight.SemiBold)
-                    FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                        typeCategories.forEach { category ->
-                            FilterChip(
-                                selected = categoryId == category.id,
-                                onClick = { categoryId = category.id },
-                                label = { Text(category.name) }
-                            )
+                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        Text("分类：", fontWeight = FontWeight.SemiBold)
+                        OutlinedButton(modifier = Modifier.weight(1f), onClick = { showCategoryPicker = true }) {
+                            Text(selectedCategory?.let(::categoryDisplayPath) ?: "请选择分类")
                         }
                     }
                     Text("成员", fontWeight = FontWeight.SemiBold)
