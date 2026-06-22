@@ -104,8 +104,8 @@ fun AccountingApp(repository: AppDataRepository) {
                     onSaved = goHome,
                     onBack = goHome
                 )
-                Screen.Chart -> ChartScreen()
-                Screen.Calendar -> CalendarScreen()
+                Screen.Chart -> ChartScreen(repository = repository)
+                Screen.Calendar -> CalendarScreen(repository = repository)
                 Screen.Settings -> SettingsScreen(repository = repository)
             }
         }

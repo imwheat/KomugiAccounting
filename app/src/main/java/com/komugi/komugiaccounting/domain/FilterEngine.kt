@@ -1,6 +1,7 @@
 ﻿package com.komugi.komugiaccounting.domain
 
 import com.komugi.komugiaccounting.data.model.FilterParams
+import com.komugi.komugiaccounting.data.model.SortMode
 import com.komugi.komugiaccounting.data.model.TransactionRecord
 
 object FilterEngine {
@@ -14,7 +15,14 @@ object FilterEngine {
             .filter { params.startTime == null || it.dateTime >= params.startTime }
             .filter { params.endTime == null || it.dateTime < params.endTime }
             .filter { params.keyword.isBlank() || it.remark.contains(params.keyword, ignoreCase = true) }
-            .let { sequence -> if (params.sortDescending) sequence.sortedByDescending { it.dateTime } else sequence.sortedBy { it.dateTime } }
+            .let { sequence ->
+                when (params.sortMode) {
+                    SortMode.TIME_DESC -> sequence.sortedByDescending { it.dateTime }
+                    SortMode.TIME_ASC -> sequence.sortedBy { it.dateTime }
+                    SortMode.AMOUNT_DESC -> sequence.sortedByDescending { it.amount }
+                    SortMode.AMOUNT_ASC -> sequence.sortedBy { it.amount }
+                }
+            }
             .toList()
     }
 }

@@ -9,5 +9,12 @@ data class FilterParams(
     val startTime: Long? = null,
     val endTime: Long? = null,
     val keyword: String = "",
-    val sortDescending: Boolean = true
+    val sortMode: SortMode = SortMode.TIME_DESC
 )
+
+enum class SortMode {
+    TIME_DESC,
+    TIME_ASC,
+    AMOUNT_DESC,
+    AMOUNT_ASC
+}
