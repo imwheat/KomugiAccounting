@@ -66,6 +66,21 @@ fun ExportScreen(
         }
     }
 
+    val xlsxExportLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.CreateDocument("application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
+    ) { uri ->
+        if (uri == null) return@rememberLauncherForActivityResult
+        runCatching {
+            context.contentResolver.openOutputStream(uri)?.use { stream ->
+                stream.write(repository.exportWorkbookXlsx())
+            } ?: error("无法打开导出文件")
+        }.onSuccess {
+            message = "Excel 工作簿已导出"
+        }.onFailure {
+            message = "导出失败：${it.message ?: "未知错误"}"
+        }
+    }
+
     val importLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.OpenDocument()
     ) { uri ->
@@ -91,7 +106,14 @@ fun ExportScreen(
         ) {
             Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
                 Text("Excel 明细", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
-                Text("导出 CSV 明细文件，可直接用 Excel 或表格软件打开。")
+                Text("导出 Excel 工作簿或 CSV 明细文件，可直接用表格软件打开。")
+                Button(
+                    modifier = Modifier.fillMaxWidth(),
+                    onClick = {
+                        val name = "komugi-report-${DateTimeUtil.formatDate(DateTimeUtil.now())}.xlsx"
+                        xlsxExportLauncher.launch(name)
+                    }
+                ) { Text("导出 Excel 工作簿") }
                 Button(
                     modifier = Modifier.fillMaxWidth(),
                     onClick = {

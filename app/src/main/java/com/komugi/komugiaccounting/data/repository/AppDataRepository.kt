@@ -14,7 +14,10 @@ import com.komugi.komugiaccounting.util.DateTimeUtil
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import java.io.ByteArrayOutputStream
 import java.util.UUID
+import java.util.zip.ZipEntry
+import java.util.zip.ZipOutputStream
 
 class AppDataRepository private constructor(context: Context) {
     private val storage = JsonFileStorage(context.applicationContext)
@@ -191,6 +194,66 @@ class AppDataRepository private constructor(context: Context) {
         return "\uFEFF" + rows.joinToString("\n") { row -> row.joinToString(",") { it.csvCell() } }
     }
 
+    fun exportWorkbookXlsx(): ByteArray {
+        val current = _data.value
+        val categories = current.categories.associateBy { it.id }
+        val members = current.members.associateBy { it.id }
+        val detailRows = buildList {
+            add(listOf("日期", "时间", "类型", "分类", "成员", "金额（元）", "备注"))
+            current.records.sortedByDescending { it.dateTime }.forEach { record ->
+                add(
+                    listOf(
+                        DateTimeUtil.formatDate(record.dateTime),
+                        DateTimeUtil.formatTime(record.dateTime),
+                        if (record.type == RecordType.INCOME) "收入" else "支出",
+                        categories[record.categoryId]?.name ?: "未分类",
+                        members[record.memberId]?.name ?: "未知成员",
+                        AmountUtil.formatPlain(record.amount),
+                        record.remark
+                    )
+                )
+            }
+        }
+        val monthRows = buildList {
+            add(listOf("月份", "收入（元）", "支出（元）", "结余（元）"))
+            current.records
+                .groupBy { DateTimeUtil.formatDate(it.dateTime).substring(0, 7) }
+                .toSortedMap(compareByDescending { it })
+                .forEach { (month, records) ->
+                    val income = records.filter { it.type == RecordType.INCOME }.sumOf { it.amount }
+                    val expense = records.filter { it.type == RecordType.EXPENSE }.sumOf { it.amount }
+                    add(listOf(month, AmountUtil.formatPlain(income), AmountUtil.formatPlain(expense), AmountUtil.formatPlain(income - expense)))
+                }
+        }
+        val totalExpense = current.records.filter { it.type == RecordType.EXPENSE }.sumOf { it.amount }.takeIf { it > 0L } ?: 1L
+        val categoryRows = buildList {
+            add(listOf("分类", "类型", "金额（元）", "占比"))
+            current.records
+                .groupBy { it.categoryId }
+                .mapNotNull { (categoryId, records) ->
+                    val category = categories[categoryId] ?: return@mapNotNull null
+                    val amount = records.sumOf { it.amount }
+                    val percent = if (category.type == RecordType.EXPENSE) amount * 100.0 / totalExpense else 0.0
+                    listOf(
+                        category.name,
+                        if (category.type == RecordType.INCOME) "收入" else "支出",
+                        AmountUtil.formatPlain(amount),
+                        if (category.type == RecordType.EXPENSE) "%.2f%%".format(percent) else "-"
+                    )
+                }
+                .sortedByDescending { it[2].toDoubleOrNull() ?: 0.0 }
+                .forEach(::add)
+        }
+
+        return buildXlsx(
+            listOf(
+                "账单明细" to detailRows,
+                "月度汇总" to monthRows,
+                "分类汇总" to categoryRows
+            )
+        )
+    }
+
     fun importJson(jsonText: String): Result<Unit> = runCatching {
         val imported = storage.importJson(jsonText)
         _data.value = imported
@@ -207,6 +270,91 @@ class AppDataRepository private constructor(context: Context) {
         val escaped = replace("\"", "\"\"")
         return if (any { it == ',' || it == '"' || it == '\n' || it == '\r' }) "\"$escaped\"" else escaped
     }
+
+    private fun buildXlsx(sheets: List<Pair<String, List<List<String>>>>): ByteArray {
+        val bytes = ByteArrayOutputStream()
+        ZipOutputStream(bytes).use { zip ->
+            zip.textEntry("[Content_Types].xml", contentTypesXml(sheets.size))
+            zip.textEntry("_rels/.rels", rootRelsXml())
+            zip.textEntry("xl/workbook.xml", workbookXml(sheets.map { it.first }))
+            zip.textEntry("xl/_rels/workbook.xml.rels", workbookRelsXml(sheets.size))
+            sheets.forEachIndexed { index, (_, rows) ->
+                zip.textEntry("xl/worksheets/sheet${index + 1}.xml", worksheetXml(rows))
+            }
+        }
+        return bytes.toByteArray()
+    }
+
+    private fun ZipOutputStream.textEntry(path: String, text: String) {
+        putNextEntry(ZipEntry(path))
+        write(text.toByteArray(Charsets.UTF_8))
+        closeEntry()
+    }
+
+    private fun contentTypesXml(sheetCount: Int): String = buildString {
+        append("""<?xml version="1.0" encoding="UTF-8" standalone="yes"?>""")
+        append("""<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">""")
+        append("""<Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>""")
+        append("""<Default Extension="xml" ContentType="application/xml"/>""")
+        append("""<Override PartName="/xl/workbook.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml"/>""")
+        (1..sheetCount).forEach { index ->
+            append("""<Override PartName="/xl/worksheets/sheet$index.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/>""")
+        }
+        append("</Types>")
+    }
+
+    private fun rootRelsXml(): String =
+        """<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="xl/workbook.xml"/></Relationships>"""
+
+    private fun workbookXml(sheetNames: List<String>): String = buildString {
+        append("""<?xml version="1.0" encoding="UTF-8" standalone="yes"?>""")
+        append("""<workbook xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"><sheets>""")
+        sheetNames.forEachIndexed { index, name ->
+            append("""<sheet name="${name.xmlEscape()}" sheetId="${index + 1}" r:id="rId${index + 1}"/>""")
+        }
+        append("</sheets></workbook>")
+    }
+
+    private fun workbookRelsXml(sheetCount: Int): String = buildString {
+        append("""<?xml version="1.0" encoding="UTF-8" standalone="yes"?>""")
+        append("""<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">""")
+        (1..sheetCount).forEach { index ->
+            append("""<Relationship Id="rId$index" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="worksheets/sheet$index.xml"/>""")
+        }
+        append("</Relationships>")
+    }
+
+    private fun worksheetXml(rows: List<List<String>>): String = buildString {
+        append("""<?xml version="1.0" encoding="UTF-8" standalone="yes"?>""")
+        append("""<worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"><sheetData>""")
+        rows.forEachIndexed { rowIndex, row ->
+            val excelRow = rowIndex + 1
+            append("""<row r="$excelRow">""")
+            row.forEachIndexed { columnIndex, value ->
+                val ref = "${columnName(columnIndex)}$excelRow"
+                append("""<c r="$ref" t="inlineStr"><is><t>${value.xmlEscape()}</t></is></c>""")
+            }
+            append("</row>")
+        }
+        append("</sheetData></worksheet>")
+    }
+
+    private fun columnName(index: Int): String {
+        var value = index
+        val builder = StringBuilder()
+        do {
+            builder.insert(0, ('A'.code + value % 26).toChar())
+            value = value / 26 - 1
+        } while (value >= 0)
+        return builder.toString()
+    }
+
+    private fun String.xmlEscape(): String =
+        replace("&", "&amp;")
+            .replace("<", "&lt;")
+            .replace(">", "&gt;")
+            .replace("\"", "&quot;")
+            .replace("'", "&apos;")
 
     companion object {
         @Volatile private var instance: AppDataRepository? = null
