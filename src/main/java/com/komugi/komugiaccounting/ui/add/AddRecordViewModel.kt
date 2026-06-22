@@ -1,0 +1,46 @@
+﻿package com.komugi.komugiaccounting.ui.add
+
+import com.komugi.komugiaccounting.data.model.AppData
+import com.komugi.komugiaccounting.data.model.RecordType
+import com.komugi.komugiaccounting.data.model.TransactionRecord
+import com.komugi.komugiaccounting.data.repository.AppDataRepository
+import com.komugi.komugiaccounting.util.AmountUtil
+import com.komugi.komugiaccounting.util.DateTimeUtil
+import kotlinx.coroutines.flow.StateFlow
+import java.util.UUID
+
+class AddRecordViewModel(private val repository: AppDataRepository) {
+    val data: StateFlow<AppData> = repository.data
+
+    fun addMember(name: String) = repository.addMember(name)
+
+    fun saveRecord(
+        type: RecordType,
+        amountText: String,
+        categoryId: String,
+        memberId: String,
+        dateTimeText: String,
+        remark: String
+    ): String? {
+        val current = data.value
+        if (current.categories.none { it.id == categoryId && it.type == type && it.enabled }) return "请选择分类"
+        if (current.members.none { it.id == memberId && it.enabled }) return "请选择成员"
+        val amount = AmountUtil.parseToCents(amountText) ?: return "请输入大于 0 的金额"
+        val dateTime = DateTimeUtil.parseDateTime(dateTimeText) ?: return "时间格式应为 yyyy-MM-dd HH:mm"
+        val now = DateTimeUtil.now()
+        repository.addRecord(
+            TransactionRecord(
+                id = UUID.randomUUID().toString(),
+                type = type,
+                amount = amount,
+                categoryId = categoryId,
+                memberId = memberId,
+                remark = remark.trim(),
+                dateTime = dateTime,
+                createdAt = now,
+                updatedAt = now
+            )
+        )
+        return null
+    }
+}
