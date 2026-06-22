@@ -24,6 +24,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.komugi.komugiaccounting.data.model.TransactionRecord
 import com.komugi.komugiaccounting.ui.components.RecordItem
 import com.komugi.komugiaccounting.ui.components.StatCard
 import com.komugi.komugiaccounting.data.repository.AppDataRepository
@@ -57,7 +58,11 @@ fun HomeScreen(
             }
         }
         when (page) {
-            0 -> HomeOverviewScreen(homeViewModel)
+            0 -> HomeOverviewScreen(
+                viewModel = homeViewModel,
+                onEditRecord = onEditRecord,
+                onToggleRefund = { record -> repository.setRecordRefunded(record.id, !record.isRefunded) }
+            )
             1 -> DetailScreen(viewModel = detailViewModel, onEditRecord = onEditRecord)
             2 -> ChartScreen(repository = repository)
             3 -> CalendarScreen(repository = repository)
@@ -66,7 +71,12 @@ fun HomeScreen(
 }
 
 @Composable
-private fun HomeOverviewScreen(viewModel: HomeViewModel, modifier: Modifier = Modifier) {
+private fun HomeOverviewScreen(
+    viewModel: HomeViewModel,
+    onEditRecord: (String) -> Unit,
+    onToggleRefund: (TransactionRecord) -> Unit,
+    modifier: Modifier = Modifier
+) {
     val data by viewModel.data.collectAsState()
     val categories = data.categories.associateBy { it.id }
     val members = data.members.associateBy { it.id }
@@ -115,7 +125,13 @@ private fun HomeOverviewScreen(viewModel: HomeViewModel, modifier: Modifier = Mo
             item { Text("还没有账目，点击底部 + 记第一笔。", color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(12.dp)) }
         } else {
             items(data.records.take(8), key = { it.id }) { record ->
-                RecordItem(record, categories[record.categoryId], members[record.memberId])
+                RecordItem(
+                    record = record,
+                    category = categories[record.categoryId],
+                    member = members[record.memberId],
+                    onClick = { onEditRecord(record.id) },
+                    onToggleRefund = { onToggleRefund(record) }
+                )
             }
         }
         item { Spacer(Modifier.height(88.dp)) }

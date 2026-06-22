@@ -8,13 +8,13 @@ object StatisticsCalculator {
     fun calculate(records: List<TransactionRecord>, startInclusive: Long, endExclusive: Long): StatResult {
         val scoped = records.filter { it.dateTime in startInclusive until endExclusive }
         return StatResult(
-            income = scoped.filter { it.type == RecordType.INCOME }.sumOf { it.amount },
-            expense = scoped.filter { it.type == RecordType.EXPENSE }.sumOf { it.amount }
+            income = scoped.filter { it.type == RecordType.INCOME }.sumOf { it.effectiveAmount },
+            expense = scoped.filter { it.type == RecordType.EXPENSE }.sumOf { it.effectiveAmount }
         )
     }
 
     fun calculateAll(records: List<TransactionRecord>): StatResult = StatResult(
-        income = records.filter { it.type == RecordType.INCOME }.sumOf { it.amount },
-        expense = records.filter { it.type == RecordType.EXPENSE }.sumOf { it.amount }
+        income = records.filter { it.type == RecordType.INCOME }.sumOf { it.effectiveAmount },
+        expense = records.filter { it.type == RecordType.EXPENSE }.sumOf { it.effectiveAmount }
     )
 }

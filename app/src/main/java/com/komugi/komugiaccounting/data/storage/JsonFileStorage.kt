@@ -109,6 +109,7 @@ class JsonFileStorage(private val context: Context) {
         put("dateTime", record.dateTime)
         put("createdAt", record.createdAt)
         put("updatedAt", record.updatedAt)
+        put("isRefunded", record.isRefunded)
     }
 
     private fun encodeCategory(category: Category) = JSONObject().apply {
@@ -169,7 +170,8 @@ class JsonFileStorage(private val context: Context) {
         remark = json.optString("remark", ""),
         dateTime = json.getLong("dateTime"),
         createdAt = json.optLong("createdAt", json.getLong("dateTime")),
-        updatedAt = json.optLong("updatedAt", json.getLong("dateTime"))
+        updatedAt = json.optLong("updatedAt", json.getLong("dateTime")),
+        isRefunded = json.optBoolean("isRefunded", false)
     )
 
     private fun decodeCategory(json: JSONObject) = Category(

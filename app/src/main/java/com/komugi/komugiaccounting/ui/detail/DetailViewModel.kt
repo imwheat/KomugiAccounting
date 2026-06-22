@@ -7,4 +7,5 @@ import kotlinx.coroutines.flow.StateFlow
 class DetailViewModel(private val repository: AppDataRepository) {
     val data: StateFlow<AppData> = repository.data
     fun deleteRecord(recordId: String) = repository.deleteRecord(recordId)
+    fun setRecordRefunded(recordId: String, refunded: Boolean) = repository.setRecordRefunded(recordId, refunded)
 }

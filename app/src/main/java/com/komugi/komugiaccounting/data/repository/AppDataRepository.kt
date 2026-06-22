@@ -55,6 +55,18 @@ class AppDataRepository private constructor(context: Context) {
         current.copy(records = current.records.filterNot { it.id == recordId })
     }
 
+    fun setRecordRefunded(recordId: String, refunded: Boolean) = update { current ->
+        current.copy(
+            records = current.records.map { record ->
+                if (record.id == recordId) {
+                    record.copy(isRefunded = refunded, updatedAt = DateTimeUtil.now())
+                } else {
+                    record
+                }
+            }
+        )
+    }
+
     fun addMember(name: String) = update { current ->
         val cleanName = name.trim()
         if (cleanName.isEmpty() || current.members.any { it.name == cleanName }) return@update current
@@ -196,7 +208,7 @@ class AppDataRepository private constructor(context: Context) {
         val members = current.members.associateBy { it.id }
         val records = current.exportRecords(startTime, endTime)
         val rows = buildList {
-            add(listOf("日期", "时间", "类型", "分类", "成员", "金额", "备注"))
+            add(listOf("日期", "时间", "类型", "分类", "成员", "金额", "退款", "备注"))
             records.forEach { record ->
                 add(
                     listOf(
@@ -205,7 +217,8 @@ class AppDataRepository private constructor(context: Context) {
                         if (record.type == RecordType.INCOME) "收入" else "支出",
                         categories[record.categoryId]?.name ?: "未分类",
                         members[record.memberId]?.name ?: "未知成员",
-                        AmountUtil.formatPlain(record.amount),
+                        AmountUtil.formatPlain(record.effectiveAmount),
+                        if (record.isRefunded) "已退款" else "",
                         record.remark
                     )
                 )
@@ -220,7 +233,7 @@ class AppDataRepository private constructor(context: Context) {
         val members = current.members.associateBy { it.id }
         val records = current.exportRecords(startTime, endTime)
         val detailRows = buildList {
-            add(listOf("日期", "时间", "类型", "分类", "成员", "金额（元）", "备注"))
+            add(listOf("日期", "时间", "类型", "分类", "成员", "金额（元）", "退款", "备注"))
             records.forEach { record ->
                 add(
                     listOf(
@@ -229,7 +242,8 @@ class AppDataRepository private constructor(context: Context) {
                         if (record.type == RecordType.INCOME) "收入" else "支出",
                         categories[record.categoryId]?.name ?: "未分类",
                         members[record.memberId]?.name ?: "未知成员",
-                        AmountUtil.formatPlain(record.amount),
+                        AmountUtil.formatPlain(record.effectiveAmount),
+                        if (record.isRefunded) "已退款" else "",
                         record.remark
                     )
                 )
@@ -241,19 +255,19 @@ class AppDataRepository private constructor(context: Context) {
                 .groupBy { DateTimeUtil.formatDate(it.dateTime).substring(0, 7) }
                 .toSortedMap(compareByDescending { it })
                 .forEach { (month, records) ->
-                    val income = records.filter { it.type == RecordType.INCOME }.sumOf { it.amount }
-                    val expense = records.filter { it.type == RecordType.EXPENSE }.sumOf { it.amount }
+                    val income = records.filter { it.type == RecordType.INCOME }.sumOf { it.effectiveAmount }
+                    val expense = records.filter { it.type == RecordType.EXPENSE }.sumOf { it.effectiveAmount }
                     add(listOf(month, AmountUtil.formatPlain(income), AmountUtil.formatPlain(expense), AmountUtil.formatPlain(income - expense)))
                 }
         }
-        val totalExpense = records.filter { it.type == RecordType.EXPENSE }.sumOf { it.amount }.takeIf { it > 0L } ?: 1L
+        val totalExpense = records.filter { it.type == RecordType.EXPENSE }.sumOf { it.effectiveAmount }.takeIf { it > 0L } ?: 1L
         val categoryRows = buildList {
             add(listOf("分类", "类型", "金额（元）", "占比"))
             records
                 .groupBy { it.categoryId }
                 .mapNotNull { (categoryId, records) ->
                     val category = categories[categoryId] ?: return@mapNotNull null
-                    val amount = records.sumOf { it.amount }
+                    val amount = records.sumOf { it.effectiveAmount }
                     val percent = if (category.type == RecordType.EXPENSE) amount * 100.0 / totalExpense else 0.0
                     listOf(
                         category.name,

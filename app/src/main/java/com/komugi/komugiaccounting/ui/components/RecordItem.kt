@@ -1,5 +1,6 @@
 ﻿package com.komugi.komugiaccounting.ui.components
 
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -9,6 +10,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
@@ -29,13 +31,17 @@ fun RecordItem(
     record: TransactionRecord,
     category: Category?,
     member: Member?,
+    onClick: (() -> Unit)? = null,
+    onToggleRefund: (() -> Unit)? = null,
     modifier: Modifier = Modifier
 ) {
     val isIncome = record.type == RecordType.INCOME
     val color = if (isIncome) Color(0xFF1F7A4D) else Color(0xFFB3542E)
     val sign = if (isIncome) "+" else "-"
     Card(
-        modifier = modifier.fillMaxWidth(),
+        modifier = modifier
+            .fillMaxWidth()
+            .then(if (onClick == null) Modifier else Modifier.clickable(onClick = onClick)),
         shape = RoundedCornerShape(18.dp),
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
     ) {
@@ -49,7 +55,17 @@ fun RecordItem(
                 Text(DateTimeUtil.formatDisplayDateTime(record.dateTime), color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 13.sp)
                 if (record.remark.isNotBlank()) Text(record.remark, color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
-            Text("$sign${AmountUtil.format(record.amount)}", color = color, fontWeight = FontWeight.Black, fontSize = 18.sp)
+            Column(horizontalAlignment = Alignment.End, verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                Text("$sign${AmountUtil.format(record.amount)}", color = color, fontWeight = FontWeight.Black, fontSize = 18.sp)
+                if (record.isRefunded) {
+                    Text("已退款", color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 12.sp)
+                }
+                onToggleRefund?.let { toggleRefund ->
+                    OutlinedButton(onClick = toggleRefund) {
+                        Text(if (record.isRefunded) "取消退款" else "退款")
+                    }
+                }
+            }
         }
     }
 }

@@ -50,6 +50,20 @@ class FilterEngineTest {
         assertEquals(listOf("lowest", "middle", "highest"), result.map { it.id })
     }
 
+    @Test
+    fun apply_usesEffectiveAmountForRefundedRecords() {
+        val records = listOf(
+            record("refunded", RecordType.EXPENSE, 500L, dateTime = 1L, isRefunded = true),
+            record("normal", RecordType.EXPENSE, 100L, dateTime = 2L)
+        )
+
+        val sorted = FilterEngine.apply(records, FilterParams(sortMode = SortMode.AMOUNT_ASC))
+        val filtered = FilterEngine.apply(records, FilterParams(minAmount = 1L))
+
+        assertEquals(listOf("refunded", "normal"), sorted.map { it.id })
+        assertEquals(listOf("normal"), filtered.map { it.id })
+    }
+
     private fun record(
         id: String,
         type: RecordType,
@@ -57,7 +71,8 @@ class FilterEngineTest {
         categoryId: String = "category",
         memberId: String = "member",
         remark: String = "",
-        dateTime: Long
+        dateTime: Long,
+        isRefunded: Boolean = false
     ) = TransactionRecord(
         id = id,
         type = type,
@@ -67,6 +82,7 @@ class FilterEngineTest {
         remark = remark,
         dateTime = dateTime,
         createdAt = dateTime,
-        updatedAt = dateTime
+        updatedAt = dateTime,
+        isRefunded = isRefunded
     )
 }

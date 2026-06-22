@@ -37,7 +37,28 @@ class StatisticsCalculatorTest {
         assertEquals(3_800L, result.balance)
     }
 
-    private fun record(id: String, type: RecordType, amount: Long, dateTime: Long) = TransactionRecord(
+    @Test
+    fun calculate_treatsRefundedRecordsAsZero() {
+        val result = StatisticsCalculator.calculateAll(
+            listOf(
+                record("income", RecordType.INCOME, 2_000L, 1L, isRefunded = true),
+                record("expense", RecordType.EXPENSE, 1_200L, 2L, isRefunded = true),
+                record("normal", RecordType.EXPENSE, 300L, 3L)
+            )
+        )
+
+        assertEquals(0L, result.income)
+        assertEquals(300L, result.expense)
+        assertEquals(-300L, result.balance)
+    }
+
+    private fun record(
+        id: String,
+        type: RecordType,
+        amount: Long,
+        dateTime: Long,
+        isRefunded: Boolean = false
+    ) = TransactionRecord(
         id = id,
         type = type,
         amount = amount,
@@ -46,6 +67,7 @@ class StatisticsCalculatorTest {
         remark = "",
         dateTime = dateTime,
         createdAt = dateTime,
-        updatedAt = dateTime
+        updatedAt = dateTime,
+        isRefunded = isRefunded
     )
 }

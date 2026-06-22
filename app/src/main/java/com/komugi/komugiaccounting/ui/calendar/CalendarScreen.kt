@@ -188,4 +188,4 @@ private sealed interface CalendarCell {
 }
 
 private fun List<TransactionRecord>.sumByType(start: Long, end: Long, type: RecordType): Long =
-    filter { it.type == type && it.dateTime in start until end }.sumOf { it.amount }
+    filter { it.type == type && it.dateTime in start until end }.sumOf { it.effectiveAmount }

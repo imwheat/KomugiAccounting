@@ -69,7 +69,8 @@ class AddRecordViewModel(private val repository: AppDataRepository) {
             remark = remark.trim(),
             dateTime = dateTime,
             createdAt = existing?.createdAt ?: now,
-            updatedAt = now
+            updatedAt = now,
+            isRefunded = existing?.isRefunded ?: false
         )
         if (existing == null) {
             repository.addRecord(nextRecord)

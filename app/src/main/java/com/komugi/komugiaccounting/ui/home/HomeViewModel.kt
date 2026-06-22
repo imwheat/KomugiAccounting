@@ -35,7 +35,8 @@ class HomeViewModel(private val repository: AppDataRepository) {
         val categoryId = data.records
             .filter { it.type == RecordType.EXPENSE && it.dateTime in start until end }
             .groupBy(TransactionRecord::categoryId)
-            .mapValues { (_, records) -> records.sumOf { it.amount } }
+            .mapValues { (_, records) -> records.sumOf { it.effectiveAmount } }
+            .filterValues { it > 0L }
             .maxByOrNull { it.value }
             ?: return null
         val category = data.categories.firstOrNull { it.id == categoryId.key } ?: return null

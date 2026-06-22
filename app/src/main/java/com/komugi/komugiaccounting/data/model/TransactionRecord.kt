@@ -9,5 +9,9 @@ data class TransactionRecord(
     val remark: String = "",
     val dateTime: Long,
     val createdAt: Long,
-    val updatedAt: Long
-)
+    val updatedAt: Long,
+    val isRefunded: Boolean = false
+) {
+    val effectiveAmount: Long
+        get() = if (isRefunded) 0L else amount
+}
