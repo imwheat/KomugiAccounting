@@ -1,5 +1,8 @@
 package com.komugi.komugiaccounting.ui.export
 
+import android.content.Context
+import android.content.Intent
+import android.net.Uri
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.Arrangement
@@ -61,8 +64,10 @@ fun ExportScreen(
             context.contentResolver.openOutputStream(uri)?.use { stream ->
                 stream.write(repository.exportJson().toByteArray(Charsets.UTF_8))
             } ?: error("无法打开导出文件")
+            uri
         }.onSuccess {
             message = "JSON 备份已导出"
+            openExportResult(context, it, "application/json")
         }.onFailure {
             message = "导出失败：${it.message ?: "未知错误"}"
         }
@@ -77,8 +82,10 @@ fun ExportScreen(
             context.contentResolver.openOutputStream(uri)?.use { stream ->
                 stream.write(repository.exportRecordsCsv(exportRange.startTime, exportRange.endTime).toByteArray(Charsets.UTF_8))
             } ?: error("无法打开导出文件")
+            uri
         }.onSuccess {
             message = "账单 CSV 已导出"
+            openExportResult(context, it, "text/csv")
         }.onFailure {
             message = "导出失败：${it.message ?: "未知错误"}"
         }
@@ -93,8 +100,10 @@ fun ExportScreen(
             context.contentResolver.openOutputStream(uri)?.use { stream ->
                 stream.write(repository.exportWorkbookXlsx(exportRange.startTime, exportRange.endTime))
             } ?: error("无法打开导出文件")
+            uri
         }.onSuccess {
             message = "Excel 工作簿已导出"
+            openExportResult(context, it, "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
         }.onFailure {
             message = "导出失败：${it.message ?: "未知错误"}"
         }
@@ -211,3 +220,20 @@ private data class ExportRange(
     val startTime: Long?,
     val endTime: Long?
 )
+
+private fun openExportResult(context: Context, uri: Uri, mimeType: String) {
+    val viewIntent = Intent(Intent.ACTION_VIEW).apply {
+        setDataAndType(uri, mimeType)
+        addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+    }
+    val shareIntent = Intent(Intent.ACTION_SEND).apply {
+        type = mimeType
+        putExtra(Intent.EXTRA_STREAM, uri)
+        addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+    }
+    val chooser = Intent.createChooser(viewIntent, "打开或分享导出文件").apply {
+        putExtra(Intent.EXTRA_INITIAL_INTENTS, arrayOf(shareIntent))
+        addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+    }
+    runCatching { context.startActivity(chooser) }
+}
