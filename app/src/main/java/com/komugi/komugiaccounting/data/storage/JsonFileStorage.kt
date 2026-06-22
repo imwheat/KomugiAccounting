@@ -32,6 +32,11 @@ class JsonFileStorage(private val context: Context) {
         check(tempFile.renameTo(dataFile)) { "Failed to replace app_data.json" }
     }
 
+    fun exportJson(data: AppData): String = encode(data).toString(2)
+
+    fun importJson(jsonText: String): AppData =
+        decode(JSONObject(jsonText)).ensureDefaults()
+
     private fun defaultData(): AppData = AppData(
         categories = DefaultData.categories,
         members = DefaultData.members,

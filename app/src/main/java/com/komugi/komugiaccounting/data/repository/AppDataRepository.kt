@@ -123,6 +123,14 @@ class AppDataRepository private constructor(context: Context) {
 
     fun updateSettings(settings: AppSettings) = update { it.copy(settings = settings) }
 
+    fun exportJson(): String = storage.exportJson(_data.value)
+
+    fun importJson(jsonText: String): Result<Unit> = runCatching {
+        val imported = storage.importJson(jsonText)
+        _data.value = imported
+        storage.saveData(imported)
+    }
+
     private fun update(block: (AppData) -> AppData) {
         val next = block(_data.value)
         _data.value = next

@@ -23,6 +23,7 @@ import androidx.compose.ui.unit.dp
 import com.komugi.komugiaccounting.data.model.ThemeMode
 import com.komugi.komugiaccounting.data.repository.AppDataRepository
 import com.komugi.komugiaccounting.ui.category.CategoryScreen
+import com.komugi.komugiaccounting.ui.export.ExportScreen
 import com.komugi.komugiaccounting.ui.member.MemberScreen
 import com.komugi.komugiaccounting.ui.template.TemplateScreen
 
@@ -39,11 +40,13 @@ fun SettingsScreen(
             onOpenMembers = { page = SettingsPage.Members },
             onOpenCategories = { page = SettingsPage.Categories },
             onOpenTemplates = { page = SettingsPage.Templates },
+            onOpenExport = { page = SettingsPage.Export },
             modifier = modifier
         )
         SettingsPage.Members -> MemberScreen(repository = repository, onBack = { page = SettingsPage.Main }, modifier = modifier)
         SettingsPage.Categories -> CategoryScreen(repository = repository, onBack = { page = SettingsPage.Main }, modifier = modifier)
         SettingsPage.Templates -> TemplateScreen(repository = repository, onBack = { page = SettingsPage.Main }, modifier = modifier)
+        SettingsPage.Export -> ExportScreen(repository = repository, onBack = { page = SettingsPage.Main }, modifier = modifier)
     }
 }
 
@@ -53,6 +56,7 @@ private fun SettingsHomeScreen(
     onOpenMembers: () -> Unit,
     onOpenCategories: () -> Unit,
     onOpenTemplates: () -> Unit,
+    onOpenExport: () -> Unit,
     modifier: Modifier = Modifier
 ) {
     val data by repository.data.collectAsState()
@@ -95,6 +99,7 @@ private fun SettingsHomeScreen(
                 SettingsEntry("成员管理", "${data.members.count { it.enabled }} 个启用", onOpenMembers)
                 SettingsEntry("分类管理", "${data.categories.count { it.enabled }} 个启用", onOpenCategories)
                 SettingsEntry("模板管理", "${data.templates.size} 个模板", onOpenTemplates)
+                SettingsEntry("导出与备份", "JSON", onOpenExport)
             }
         }
     }
@@ -134,5 +139,6 @@ private enum class SettingsPage {
     Main,
     Members,
     Categories,
-    Templates
+    Templates,
+    Export
 }
