@@ -6,10 +6,11 @@ import androidx.activity.compose.BackHandler
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
-import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.NavigationBar
 import androidx.compose.material3.NavigationBarItem
@@ -24,19 +25,20 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.dp
 import com.komugi.komugiaccounting.data.model.ThemeMode
 import com.komugi.komugiaccounting.data.repository.AppDataRepository
 import com.komugi.komugiaccounting.navigation.Screen
 import com.komugi.komugiaccounting.ui.add.AddRecordScreen
 import com.komugi.komugiaccounting.ui.add.AddRecordViewModel
-import com.komugi.komugiaccounting.ui.calendar.CalendarScreen
-import com.komugi.komugiaccounting.ui.chart.ChartScreen
-import com.komugi.komugiaccounting.ui.detail.DetailScreen
 import com.komugi.komugiaccounting.ui.detail.DetailViewModel
 import com.komugi.komugiaccounting.ui.home.HomeScreen
 import com.komugi.komugiaccounting.ui.home.HomeViewModel
 import com.komugi.komugiaccounting.ui.settings.SettingsScreen
+import com.komugi.komugiaccounting.ui.template.TemplateScreen
 import com.komugi.komugiaccounting.ui.theme.KomugiAccountingTheme
 import androidx.compose.foundation.isSystemInDarkTheme
 import kotlinx.coroutines.launch
@@ -63,38 +65,54 @@ class MainActivity : ComponentActivity() {
 @Composable
 fun AccountingApp(repository: AppDataRepository) {
     var currentScreen by remember { mutableStateOf(Screen.Home) }
+    var previousScreens by remember { mutableStateOf<List<Screen>>(emptyList()) }
     var editingRecordId by remember { mutableStateOf<String?>(null) }
     val homeViewModel = remember(repository) { HomeViewModel(repository) }
     val addRecordViewModel = remember(repository) { AddRecordViewModel(repository) }
     val detailViewModel = remember(repository) { DetailViewModel(repository) }
-    val bottomScreens = listOf(Screen.Home, Screen.Detail, Screen.Chart, Screen.Calendar, Screen.Settings)
+    val bottomScreens = listOf(Screen.Home, Screen.Template, Screen.Add, Screen.Automation, Screen.Settings)
     val snackbarHostState = remember { SnackbarHostState() }
     val coroutineScope = rememberCoroutineScope()
-    val goHome = { currentScreen = Screen.Home }
+
+    fun navigateTo(screen: Screen, addToBackStack: Boolean = true) {
+        if (screen == currentScreen) return
+        if (addToBackStack) previousScreens = previousScreens + currentScreen
+        currentScreen = screen
+    }
+
+    fun navigateBack() {
+        val previous = previousScreens.lastOrNull()
+        if (previous == null) {
+            currentScreen = Screen.Home
+        } else {
+            previousScreens = previousScreens.dropLast(1)
+            currentScreen = previous
+        }
+    }
+
+    fun goHome() {
+        previousScreens = emptyList()
+        currentScreen = Screen.Home
+    }
 
     BackHandler(enabled = currentScreen != Screen.Home) {
-        goHome()
+        navigateBack()
     }
 
     Scaffold(
         snackbarHost = { SnackbarHost(snackbarHostState) },
-        floatingActionButton = {
-            FloatingActionButton(onClick = {
-                editingRecordId = null
-                currentScreen = Screen.Add
-            }) {
-                Text("+")
-            }
-        },
         bottomBar = {
             if (currentScreen != Screen.Add) {
                 NavigationBar(containerColor = MaterialTheme.colorScheme.surface.copy(alpha = 0.94f)) {
                     bottomScreens.forEach { screen ->
                         NavigationBarItem(
                             selected = currentScreen == screen,
-                            onClick = { currentScreen = screen },
+                            onClick = {
+                                if (screen == Screen.Add) editingRecordId = null
+                                navigateTo(screen)
+                            },
                             icon = { Text(screen.navIcon()) },
-                            label = { Text(screen.title) }
+                            label = { Text(screen.navLabel()) }
                         )
                     }
                 }
@@ -108,36 +126,57 @@ fun AccountingApp(repository: AppDataRepository) {
                 .padding(innerPadding)
         ) {
             when (currentScreen) {
-                Screen.Home -> HomeScreen(homeViewModel)
-                Screen.Detail -> DetailScreen(
-                    viewModel = detailViewModel,
+                Screen.Home -> HomeScreen(
+                    homeViewModel = homeViewModel,
+                    detailViewModel = detailViewModel,
+                    repository = repository,
                     onEditRecord = { recordId ->
                         editingRecordId = recordId
-                        currentScreen = Screen.Add
+                        navigateTo(Screen.Add)
                     }
                 )
+                Screen.Template -> TemplateScreen(
+                    repository = repository,
+                    onBack = ::navigateBack
+                )
+                Screen.Automation -> AutomationPlaceholder()
                 Screen.Add -> AddRecordScreen(
                     viewModel = addRecordViewModel,
                     onSaved = { message ->
                         goHome()
                         coroutineScope.launch { snackbarHostState.showSnackbar(message) }
                     },
-                    onBack = goHome,
+                    onBack = ::navigateBack,
                     recordId = editingRecordId
                 )
-                Screen.Chart -> ChartScreen(repository = repository)
-                Screen.Calendar -> CalendarScreen(repository = repository)
                 Screen.Settings -> SettingsScreen(repository = repository)
             }
         }
     }
 }
 
+@Composable
+private fun AutomationPlaceholder(modifier: Modifier = Modifier) {
+    Box(
+        modifier = modifier.fillMaxSize(),
+        contentAlignment = Alignment.Center
+    ) {
+        Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            Text("自动化", style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Black)
+            Text("后续补充", color = MaterialTheme.colorScheme.onSurfaceVariant)
+        }
+    }
+}
+
 private fun Screen.navIcon(): String = when (this) {
     Screen.Home -> "首"
-    Screen.Detail -> "明"
+    Screen.Template -> "模"
     Screen.Add -> "+"
-    Screen.Chart -> "图"
-    Screen.Calendar -> "历"
+    Screen.Automation -> "自"
     Screen.Settings -> "设"
+}
+
+private fun Screen.navLabel(): String = when (this) {
+    Screen.Add -> "记一笔"
+    else -> title
 }

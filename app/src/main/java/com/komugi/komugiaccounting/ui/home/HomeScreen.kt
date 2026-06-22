@@ -26,10 +26,47 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.komugi.komugiaccounting.ui.components.RecordItem
 import com.komugi.komugiaccounting.ui.components.StatCard
+import com.komugi.komugiaccounting.data.repository.AppDataRepository
+import com.komugi.komugiaccounting.ui.calendar.CalendarScreen
+import com.komugi.komugiaccounting.ui.chart.ChartScreen
+import com.komugi.komugiaccounting.ui.detail.DetailScreen
+import com.komugi.komugiaccounting.ui.detail.DetailViewModel
 import com.komugi.komugiaccounting.util.AmountUtil
 
 @Composable
-fun HomeScreen(viewModel: HomeViewModel, modifier: Modifier = Modifier) {
+fun HomeScreen(
+    homeViewModel: HomeViewModel,
+    detailViewModel: DetailViewModel,
+    repository: AppDataRepository,
+    onEditRecord: (String) -> Unit,
+    modifier: Modifier = Modifier
+) {
+    var page by rememberSaveable { mutableIntStateOf(0) }
+
+    Column(modifier = modifier) {
+        Row(
+            modifier = Modifier.padding(horizontal = 18.dp, vertical = 10.dp),
+            horizontalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            listOf("首页", "明细", "图表", "日历").forEachIndexed { index, title ->
+                FilterChip(
+                    selected = page == index,
+                    onClick = { page = index },
+                    label = { Text(title) }
+                )
+            }
+        }
+        when (page) {
+            0 -> HomeOverviewScreen(homeViewModel)
+            1 -> DetailScreen(viewModel = detailViewModel, onEditRecord = onEditRecord)
+            2 -> ChartScreen(repository = repository)
+            3 -> CalendarScreen(repository = repository)
+        }
+    }
+}
+
+@Composable
+private fun HomeOverviewScreen(viewModel: HomeViewModel, modifier: Modifier = Modifier) {
     val data by viewModel.data.collectAsState()
     val categories = data.categories.associateBy { it.id }
     val members = data.members.associateBy { it.id }

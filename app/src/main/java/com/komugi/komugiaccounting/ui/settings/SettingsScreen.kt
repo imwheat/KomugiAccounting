@@ -1,5 +1,6 @@
 package com.komugi.komugiaccounting.ui.settings
 
+import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -33,6 +34,10 @@ fun SettingsScreen(
     modifier: Modifier = Modifier
 ) {
     var page by rememberSaveable { mutableStateOf(SettingsPage.Main) }
+
+    BackHandler(enabled = page != SettingsPage.Main) {
+        page = SettingsPage.Main
+    }
 
     when (page) {
         SettingsPage.Main -> SettingsHomeScreen(
