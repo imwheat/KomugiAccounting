@@ -1,8 +1,0 @@
-com.komugi.komugiaccounting.app-pngs-0 D:\Android\app\KomugiAccounting\app\build\generated\res\pngs\debug
-com.komugi.komugiaccounting.app-updated_navigation_xml-1 D:\Android\app\KomugiAccounting\app\build\generated\updated_navigation_xml\debug
-com.komugi.komugiaccounting.app-packageDebugResources-2 D:\Android\app\KomugiAccounting\app\build\intermediates\incremental\debug\packageDebugResources\merged.dir
-com.komugi.komugiaccounting.app-packageDebugResources-3 D:\Android\app\KomugiAccounting\app\build\intermediates\incremental\debug\packageDebugResources\stripped.dir
-com.komugi.komugiaccounting.app-debug-4 D:\Android\app\KomugiAccounting\app\build\intermediates\merged_res\debug\mergeDebugResources
-com.komugi.komugiaccounting.app-debug-5 D:\Android\app\KomugiAccounting\app\src\debug\res
-com.komugi.komugiaccounting.app-main-6 D:\Android\app\KomugiAccounting\app\src\main\res
-gradleHome-0 C:\Users\linte\.gradle
