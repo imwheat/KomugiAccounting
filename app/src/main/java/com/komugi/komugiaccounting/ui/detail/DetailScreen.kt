@@ -42,7 +42,11 @@ import java.util.Calendar
 
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
-fun DetailScreen(viewModel: DetailViewModel, modifier: Modifier = Modifier) {
+fun DetailScreen(
+    viewModel: DetailViewModel,
+    onEditRecord: (String) -> Unit,
+    modifier: Modifier = Modifier
+) {
     val data by viewModel.data.collectAsState()
     val categories = data.categories.associateBy { it.id }
     val members = data.members.associateBy { it.id }
@@ -209,6 +213,9 @@ fun DetailScreen(viewModel: DetailViewModel, modifier: Modifier = Modifier) {
                     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                         RecordItem(record, categories[record.categoryId], members[record.memberId])
                         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            OutlinedButton(onClick = { onEditRecord(record.id) }) {
+                                Text("编辑")
+                            }
                             OutlinedButton(onClick = {
                                 if (pendingDeleteId == record.id) {
                                     viewModel.deleteRecord(record.id)

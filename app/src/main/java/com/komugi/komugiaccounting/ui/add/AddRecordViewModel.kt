@@ -50,7 +50,8 @@ class AddRecordViewModel(private val repository: AppDataRepository) {
         categoryId: String,
         memberId: String,
         dateTimeText: String,
-        remark: String
+        remark: String,
+        recordId: String? = null
     ): String? {
         val current = data.value
         if (current.categories.none { it.id == categoryId && it.type == type && it.enabled }) return "请选择分类"
@@ -58,19 +59,28 @@ class AddRecordViewModel(private val repository: AppDataRepository) {
         val amount = AmountUtil.parseToCents(amountText) ?: return "请输入大于 0 的金额"
         val dateTime = DateTimeUtil.parseDateTime(dateTimeText) ?: return "时间格式应为 yyyy-MM-dd HH:mm"
         val now = DateTimeUtil.now()
-        repository.addRecord(
-            TransactionRecord(
-                id = UUID.randomUUID().toString(),
-                type = type,
-                amount = amount,
-                categoryId = categoryId,
-                memberId = memberId,
-                remark = remark.trim(),
-                dateTime = dateTime,
-                createdAt = now,
-                updatedAt = now
-            )
+        val existing = recordId?.let { id -> current.records.firstOrNull { it.id == id } }
+        val nextRecord = TransactionRecord(
+            id = existing?.id ?: UUID.randomUUID().toString(),
+            type = type,
+            amount = amount,
+            categoryId = categoryId,
+            memberId = memberId,
+            remark = remark.trim(),
+            dateTime = dateTime,
+            createdAt = existing?.createdAt ?: now,
+            updatedAt = now
         )
+        if (existing == null) {
+            repository.addRecord(nextRecord)
+        } else {
+            repository.updateRecord(nextRecord)
+        }
         return null
+    }
+
+    fun record(recordId: String?): TransactionRecord? {
+        if (recordId == null) return null
+        return data.value.records.firstOrNull { it.id == recordId }
     }
 }

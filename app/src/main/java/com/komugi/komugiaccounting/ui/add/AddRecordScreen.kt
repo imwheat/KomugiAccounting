@@ -42,6 +42,7 @@ fun AddRecordScreen(
     viewModel: AddRecordViewModel,
     onSaved: () -> Unit,
     onBack: () -> Unit,
+    recordId: String? = null,
     modifier: Modifier = Modifier
 ) {
     val data by viewModel.data.collectAsState()
@@ -52,12 +53,37 @@ fun AddRecordScreen(
     var newMember by rememberSaveable { mutableStateOf("") }
     var error by rememberSaveable { mutableStateOf<String?>(null) }
     var message by rememberSaveable { mutableStateOf<String?>(null) }
+    var loadedRecordId by rememberSaveable { mutableStateOf<String?>(null) }
 
     val typeCategories = data.categories.filter { it.enabled && it.type == type }.sortedBy { it.sortOrder }
     var selectedCategoryId by rememberSaveable { mutableStateOf("") }
     var selectedMemberId by rememberSaveable { mutableStateOf("") }
 
     BackHandler(onBack = onBack)
+
+    LaunchedEffect(recordId, data.records) {
+        if (recordId != loadedRecordId) {
+            val record = viewModel.record(recordId)
+            loadedRecordId = recordId
+            if (record == null) {
+                type = RecordType.EXPENSE
+                amount = ""
+                dateTime = DateTimeUtil.formatDateTime(DateTimeUtil.now())
+                remark = ""
+                selectedCategoryId = ""
+                selectedMemberId = ""
+            } else {
+                type = record.type
+                amount = AmountUtil.formatPlain(record.amount)
+                dateTime = DateTimeUtil.formatDateTime(record.dateTime)
+                remark = record.remark
+                selectedCategoryId = record.categoryId
+                selectedMemberId = record.memberId
+            }
+            error = null
+            message = null
+        }
+    }
 
     LaunchedEffect(type, data.categories, data.settings, selectedCategoryId) {
         if (typeCategories.none { it.id == selectedCategoryId }) {
@@ -81,7 +107,7 @@ fun AddRecordScreen(
         item {
             Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                 OutlinedButton(onClick = onBack) { Text("返回") }
-                Text("记一笔", style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Black)
+                Text(if (recordId == null) "记一笔" else "编辑记录", style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Black)
             }
         }
         item {
@@ -184,7 +210,7 @@ fun AddRecordScreen(
                             modifier = Modifier.weight(1f),
                             onClick = {
                                 message = null
-                                error = viewModel.saveRecord(type, amount, selectedCategoryId, selectedMemberId, dateTime, remark)
+                                error = viewModel.saveRecord(type, amount, selectedCategoryId, selectedMemberId, dateTime, remark, recordId)
                                 if (error == null) {
                                     amount = ""
                                     remark = ""
@@ -192,7 +218,7 @@ fun AddRecordScreen(
                                     onSaved()
                                 }
                             }
-                        ) { Text("完成保存") }
+                        ) { Text(if (recordId == null) "完成保存" else "保存修改") }
                     }
                 }
             }

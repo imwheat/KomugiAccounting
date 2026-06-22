@@ -30,6 +30,17 @@ class AppDataRepository private constructor(context: Context) {
         )
     }
 
+    fun updateRecord(record: TransactionRecord) = update { current ->
+        current.copy(
+            records = current.records.map { if (it.id == record.id) record else it }.sortedByDescending { it.dateTime },
+            settings = current.settings.copy(
+                lastExpenseCategoryId = if (record.type == RecordType.EXPENSE) record.categoryId else current.settings.lastExpenseCategoryId,
+                lastIncomeCategoryId = if (record.type == RecordType.INCOME) record.categoryId else current.settings.lastIncomeCategoryId,
+                lastMemberId = record.memberId
+            )
+        )
+    }
+
     fun deleteRecord(recordId: String) = update { current ->
         current.copy(records = current.records.filterNot { it.id == recordId })
     }

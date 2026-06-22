@@ -59,6 +59,7 @@ class MainActivity : ComponentActivity() {
 @Composable
 fun AccountingApp(repository: AppDataRepository) {
     var currentScreen by remember { mutableStateOf(Screen.Home) }
+    var editingRecordId by remember { mutableStateOf<String?>(null) }
     val homeViewModel = remember(repository) { HomeViewModel(repository) }
     val addRecordViewModel = remember(repository) { AddRecordViewModel(repository) }
     val detailViewModel = remember(repository) { DetailViewModel(repository) }
@@ -71,7 +72,10 @@ fun AccountingApp(repository: AppDataRepository) {
 
     Scaffold(
         floatingActionButton = {
-            FloatingActionButton(onClick = { currentScreen = Screen.Add }) {
+            FloatingActionButton(onClick = {
+                editingRecordId = null
+                currentScreen = Screen.Add
+            }) {
                 Text("+")
             }
         },
@@ -98,11 +102,18 @@ fun AccountingApp(repository: AppDataRepository) {
         ) {
             when (currentScreen) {
                 Screen.Home -> HomeScreen(homeViewModel)
-                Screen.Detail -> DetailScreen(detailViewModel)
+                Screen.Detail -> DetailScreen(
+                    viewModel = detailViewModel,
+                    onEditRecord = { recordId ->
+                        editingRecordId = recordId
+                        currentScreen = Screen.Add
+                    }
+                )
                 Screen.Add -> AddRecordScreen(
                     viewModel = addRecordViewModel,
                     onSaved = goHome,
-                    onBack = goHome
+                    onBack = goHome,
+                    recordId = editingRecordId
                 )
                 Screen.Chart -> ChartScreen(repository = repository)
                 Screen.Calendar -> CalendarScreen(repository = repository)
