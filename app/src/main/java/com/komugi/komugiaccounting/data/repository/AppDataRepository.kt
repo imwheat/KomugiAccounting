@@ -78,8 +78,28 @@ class AppDataRepository private constructor(context: Context) {
         current.copy(members = current.members.map { if (it.id == memberId) it.copy(enabled = enabled) else it })
     }
 
+    fun deleteMember(memberId: String): String? {
+        val current = _data.value
+        val member = current.members.firstOrNull { it.id == memberId } ?: return "成员不存在"
+        if (member.isSystem) return "系统预置成员不可删除，可选择禁用"
+        if (current.records.any { it.memberId == memberId }) return "已有账单关联该成员，不能删除"
+        if (current.templates.any { it.memberId == memberId }) return "已有模板关联该成员，不能删除"
+        update { data -> data.copy(members = data.members.filterNot { it.id == memberId }) }
+        return null
+    }
+
     fun setCategoryEnabled(categoryId: String, enabled: Boolean) = update { current ->
         current.copy(categories = current.categories.map { if (it.id == categoryId) it.copy(enabled = enabled) else it })
+    }
+
+    fun deleteCategory(categoryId: String): String? {
+        val current = _data.value
+        val category = current.categories.firstOrNull { it.id == categoryId } ?: return "分类不存在"
+        if (category.isSystem) return "系统预置分类不可删除，可选择禁用"
+        if (current.records.any { it.categoryId == categoryId }) return "已有账单关联该分类，不能删除"
+        if (current.templates.any { it.categoryId == categoryId }) return "已有模板关联该分类，不能删除"
+        update { data -> data.copy(categories = data.categories.filterNot { it.id == categoryId }) }
+        return null
     }
 
     fun addCategory(name: String, type: RecordType) = update { current ->

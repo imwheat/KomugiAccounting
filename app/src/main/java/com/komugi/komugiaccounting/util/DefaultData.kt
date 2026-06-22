@@ -27,10 +27,10 @@ object DefaultData {
     )
 
     val members = listOf(
-        Member("mem-self", "自己", "#42A5F5"),
-        Member("mem-spouse", "伴侣", "#EC407A"),
-        Member("mem-child", "孩子", "#FFCA28"),
-        Member("mem-company", "公司", "#5C6BC0"),
-        Member("mem-family", "家庭公用", "#66BB6A")
+        Member("mem-self", "自己", "#42A5F5", isSystem = true),
+        Member("mem-spouse", "伴侣", "#EC407A", isSystem = true),
+        Member("mem-child", "孩子", "#FFCA28", isSystem = true),
+        Member("mem-company", "公司", "#5C6BC0", isSystem = true),
+        Member("mem-family", "家庭公用", "#66BB6A", isSystem = true)
     )
 }

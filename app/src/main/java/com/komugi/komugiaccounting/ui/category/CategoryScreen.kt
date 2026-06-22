@@ -40,6 +40,7 @@ fun CategoryScreen(
     val data by repository.data.collectAsState()
     var selectedType by rememberSaveable { mutableStateOf(RecordType.EXPENSE) }
     var newName by rememberSaveable { mutableStateOf("") }
+    var message by rememberSaveable { mutableStateOf<String?>(null) }
     val editingNames = remember { mutableStateMapOf<String, String>() }
     val categories = data.categories
         .filter { it.type == selectedType }
@@ -59,12 +60,18 @@ fun CategoryScreen(
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 FilterChip(
                     selected = selectedType == RecordType.EXPENSE,
-                    onClick = { selectedType = RecordType.EXPENSE },
+                    onClick = {
+                        selectedType = RecordType.EXPENSE
+                        message = null
+                    },
                     label = { Text("支出分类") }
                 )
                 FilterChip(
                     selected = selectedType == RecordType.INCOME,
-                    onClick = { selectedType = RecordType.INCOME },
+                    onClick = {
+                        selectedType = RecordType.INCOME
+                        message = null
+                    },
                     label = { Text("收入分类") }
                 )
             }
@@ -86,23 +93,31 @@ fun CategoryScreen(
                     Button(onClick = {
                         repository.addCategory(newName, selectedType)
                         newName = ""
+                        message = null
                     }) { Text("添加") }
                 }
             }
+        }
+        message?.let {
+            item { Text(it, color = MaterialTheme.colorScheme.error, modifier = Modifier.padding(horizontal = 4.dp)) }
         }
         items(categories, key = { it.id }) { category ->
             val editName = editingNames.getOrPut(category.id) { category.name }
             Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)) {
                 Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                    Text(if (category.isSystem) "系统预置分类" else "自定义分类", color = MaterialTheme.colorScheme.onSurfaceVariant)
                     Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                         OutlinedTextField(
                             value = editName,
                             onValueChange = { editingNames[category.id] = it },
-                            label = { Text(if (category.isSystem) "系统分类" else "自定义分类") },
+                            label = { Text("名称") },
                             singleLine = true,
                             modifier = Modifier.weight(1f)
                         )
-                        Button(onClick = { repository.updateCategory(category.id, editName) }) { Text("保存") }
+                        Button(onClick = {
+                            repository.updateCategory(category.id, editName)
+                            message = null
+                        }) { Text("保存") }
                     }
                     Row(
                         modifier = Modifier.fillMaxWidth(),
@@ -112,8 +127,16 @@ fun CategoryScreen(
                         Text(if (category.enabled) "记账页显示" else "记账页隐藏")
                         Switch(
                             checked = category.enabled,
-                            onCheckedChange = { repository.setCategoryEnabled(category.id, it) }
+                            onCheckedChange = {
+                                repository.setCategoryEnabled(category.id, it)
+                                message = null
+                            }
                         )
+                    }
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        OutlinedButton(onClick = {
+                            message = repository.deleteCategory(category.id) ?: "分类已删除"
+                        }) { Text("删除") }
                     }
                 }
             }

@@ -47,10 +47,17 @@ class JsonFileStorage(private val context: Context) {
         )
     )
 
-    private fun AppData.ensureDefaults(): AppData = copy(
-        categories = if (categories.isEmpty()) DefaultData.categories else categories,
-        members = if (members.isEmpty()) DefaultData.members else members
-    )
+    private fun AppData.ensureDefaults(): AppData {
+        val systemMemberIds = DefaultData.members.map { it.id }.toSet()
+        return copy(
+            categories = if (categories.isEmpty()) DefaultData.categories else categories,
+            members = if (members.isEmpty()) {
+                DefaultData.members
+            } else {
+                members.map { member -> if (member.id in systemMemberIds) member.copy(isSystem = true) else member }
+            }
+        )
+    }
 
     private fun encode(data: AppData) = JSONObject().apply {
         put("version", data.version)
@@ -90,6 +97,7 @@ class JsonFileStorage(private val context: Context) {
         put("avatarColor", member.avatarColor)
         put("iconName", member.iconName)
         put("enabled", member.enabled)
+        put("isSystem", member.isSystem)
     }
 
     private fun encodeTemplate(template: Template) = JSONObject().apply {
@@ -147,7 +155,8 @@ class JsonFileStorage(private val context: Context) {
         name = json.getString("name"),
         avatarColor = json.optString("avatarColor", "#42A5F5"),
         iconName = json.optString("iconName", ""),
-        enabled = json.optBoolean("enabled", true)
+        enabled = json.optBoolean("enabled", true),
+        isSystem = json.optBoolean("isSystem", false)
     )
 
     private fun decodeTemplate(json: JSONObject) = Template(

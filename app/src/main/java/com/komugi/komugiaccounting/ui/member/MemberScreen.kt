@@ -37,6 +37,7 @@ fun MemberScreen(
 ) {
     val data by repository.data.collectAsState()
     var newName by rememberSaveable { mutableStateOf("") }
+    var message by rememberSaveable { mutableStateOf<String?>(null) }
     val editingNames = remember { mutableStateMapOf<String, String>() }
 
     LazyColumn(
@@ -66,14 +67,19 @@ fun MemberScreen(
                     Button(onClick = {
                         repository.addMember(newName)
                         newName = ""
+                        message = null
                     }) { Text("添加") }
                 }
             }
+        }
+        message?.let {
+            item { Text(it, color = MaterialTheme.colorScheme.error, modifier = Modifier.padding(horizontal = 4.dp)) }
         }
         items(data.members, key = { it.id }) { member ->
             val editName = editingNames.getOrPut(member.id) { member.name }
             Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)) {
                 Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                    Text(if (member.isSystem) "系统预置成员" else "自定义成员", color = MaterialTheme.colorScheme.onSurfaceVariant)
                     Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                         OutlinedTextField(
                             value = editName,
@@ -82,7 +88,10 @@ fun MemberScreen(
                             singleLine = true,
                             modifier = Modifier.weight(1f)
                         )
-                        Button(onClick = { repository.updateMember(member.id, editName) }) { Text("保存") }
+                        Button(onClick = {
+                            repository.updateMember(member.id, editName)
+                            message = null
+                        }) { Text("保存") }
                     }
                     Row(
                         modifier = Modifier.fillMaxWidth(),
@@ -92,8 +101,16 @@ fun MemberScreen(
                         Text(if (member.enabled) "记账页显示" else "记账页隐藏")
                         Switch(
                             checked = member.enabled,
-                            onCheckedChange = { repository.setMemberEnabled(member.id, it) }
+                            onCheckedChange = {
+                                repository.setMemberEnabled(member.id, it)
+                                message = null
+                            }
                         )
+                    }
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        OutlinedButton(onClick = {
+                            message = repository.deleteMember(member.id) ?: "成员已删除"
+                        }) { Text("删除") }
                     }
                 }
             }

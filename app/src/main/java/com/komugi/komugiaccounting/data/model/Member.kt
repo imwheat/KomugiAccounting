@@ -5,5 +5,6 @@ data class Member(
     val name: String,
     val avatarColor: String,
     val iconName: String = "",
-    val enabled: Boolean = true
+    val enabled: Boolean = true,
+    val isSystem: Boolean = false
 )
