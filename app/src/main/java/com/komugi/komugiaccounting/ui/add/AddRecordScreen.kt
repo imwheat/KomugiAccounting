@@ -216,6 +216,21 @@ fun AddRecordScreen(
                                 if (error == null) message = "已存为模板"
                             }
                         ) { Text("存为模板") }
+                        if (recordId == null) {
+                            OutlinedButton(
+                                modifier = Modifier.weight(1f),
+                                onClick = {
+                                    message = null
+                                    error = viewModel.saveRecord(type, amount, selectedCategoryId, selectedMemberId, dateTime, remark, null)
+                                    if (error == null) {
+                                        amount = ""
+                                        remark = ""
+                                        dateTime = DateTimeUtil.formatDateTime(DateTimeUtil.now())
+                                        message = "保存成功，可继续记下一笔"
+                                    }
+                                }
+                            ) { Text("保存并继续") }
+                        }
                         Button(
                             modifier = Modifier.weight(1f),
                             onClick = {
