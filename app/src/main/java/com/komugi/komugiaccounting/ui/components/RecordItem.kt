@@ -8,6 +8,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
@@ -36,7 +37,7 @@ fun RecordItem(
     Card(
         modifier = modifier.fillMaxWidth(),
         shape = RoundedCornerShape(18.dp),
-        colors = CardDefaults.cardColors(containerColor = Color.White.copy(alpha = 0.9f))
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
     ) {
         Row(
             modifier = Modifier.padding(14.dp),
@@ -45,8 +46,8 @@ fun RecordItem(
         ) {
             Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
                 Text("${category?.name ?: "未分类"} · ${member?.name ?: "未知成员"}", fontWeight = FontWeight.Bold)
-                Text(DateTimeUtil.formatDisplayDateTime(record.dateTime), color = Color(0xFF73796F), fontSize = 13.sp)
-                if (record.remark.isNotBlank()) Text(record.remark, color = Color(0xFF4D554A))
+                Text(DateTimeUtil.formatDisplayDateTime(record.dateTime), color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 13.sp)
+                if (record.remark.isNotBlank()) Text(record.remark, color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
             Text("$sign${AmountUtil.format(record.amount)}", color = color, fontWeight = FontWeight.Black, fontSize = 18.sp)
         }

@@ -2,6 +2,7 @@
 
 import android.os.Bundle
 import androidx.activity.ComponentActivity
+import androidx.activity.compose.BackHandler
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.compose.foundation.background
@@ -15,13 +16,13 @@ import androidx.compose.material3.NavigationBarItem
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Brush
-import androidx.compose.ui.graphics.Color
+import com.komugi.komugiaccounting.data.model.ThemeMode
 import com.komugi.komugiaccounting.data.repository.AppDataRepository
 import com.komugi.komugiaccounting.navigation.Screen
 import com.komugi.komugiaccounting.ui.add.AddRecordScreen
@@ -34,14 +35,21 @@ import com.komugi.komugiaccounting.ui.home.HomeScreen
 import com.komugi.komugiaccounting.ui.home.HomeViewModel
 import com.komugi.komugiaccounting.ui.settings.SettingsScreen
 import com.komugi.komugiaccounting.ui.theme.KomugiAccountingTheme
+import androidx.compose.foundation.isSystemInDarkTheme
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
         setContent {
-            KomugiAccountingTheme(dynamicColor = false) {
-                val repository = remember { AppDataRepository.get(applicationContext) }
+            val repository = remember { AppDataRepository.get(applicationContext) }
+            val data by repository.data.collectAsState()
+            val darkTheme = when (data.settings.themeMode) {
+                ThemeMode.LIGHT -> false
+                ThemeMode.DARK -> true
+                ThemeMode.SYSTEM -> isSystemInDarkTheme()
+            }
+            KomugiAccountingTheme(darkTheme = darkTheme, dynamicColor = false) {
                 AccountingApp(repository)
             }
         }
@@ -55,6 +63,11 @@ fun AccountingApp(repository: AppDataRepository) {
     val addRecordViewModel = remember(repository) { AddRecordViewModel(repository) }
     val detailViewModel = remember(repository) { DetailViewModel(repository) }
     val bottomScreens = listOf(Screen.Home, Screen.Detail, Screen.Chart, Screen.Calendar, Screen.Settings)
+    val goHome = { currentScreen = Screen.Home }
+
+    BackHandler(enabled = currentScreen != Screen.Home) {
+        goHome()
+    }
 
     Scaffold(
         floatingActionButton = {
@@ -64,7 +77,7 @@ fun AccountingApp(repository: AppDataRepository) {
         },
         bottomBar = {
             if (currentScreen != Screen.Add) {
-                NavigationBar(containerColor = Color.White.copy(alpha = 0.94f)) {
+                NavigationBar(containerColor = MaterialTheme.colorScheme.surface.copy(alpha = 0.94f)) {
                     bottomScreens.forEach { screen ->
                         NavigationBarItem(
                             selected = currentScreen == screen,
@@ -80,11 +93,7 @@ fun AccountingApp(repository: AppDataRepository) {
         Box(
             modifier = Modifier
                 .fillMaxSize()
-                .background(
-                    Brush.verticalGradient(
-                        listOf(Color(0xFFF6E7C8), Color(0xFFEFF6EA), MaterialTheme.colorScheme.background)
-                    )
-                )
+                .background(MaterialTheme.colorScheme.background)
                 .padding(innerPadding)
         ) {
             when (currentScreen) {
@@ -92,11 +101,12 @@ fun AccountingApp(repository: AppDataRepository) {
                 Screen.Detail -> DetailScreen(detailViewModel)
                 Screen.Add -> AddRecordScreen(
                     viewModel = addRecordViewModel,
-                    onSaved = { currentScreen = Screen.Home }
+                    onSaved = goHome,
+                    onBack = goHome
                 )
                 Screen.Chart -> ChartScreen()
                 Screen.Calendar -> CalendarScreen()
-                Screen.Settings -> SettingsScreen()
+                Screen.Settings -> SettingsScreen(repository = repository)
             }
         }
     }

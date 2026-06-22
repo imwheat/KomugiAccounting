@@ -2,6 +2,7 @@
 
 import com.komugi.komugiaccounting.data.model.AppData
 import com.komugi.komugiaccounting.data.model.RecordType
+import com.komugi.komugiaccounting.data.model.Template
 import com.komugi.komugiaccounting.data.model.TransactionRecord
 import com.komugi.komugiaccounting.data.repository.AppDataRepository
 import com.komugi.komugiaccounting.util.AmountUtil
@@ -13,6 +14,35 @@ class AddRecordViewModel(private val repository: AppDataRepository) {
     val data: StateFlow<AppData> = repository.data
 
     fun addMember(name: String) = repository.addMember(name)
+
+    fun saveTemplate(
+        type: RecordType,
+        amountText: String,
+        categoryId: String,
+        memberId: String,
+        remark: String
+    ): String? {
+        val current = data.value
+        if (current.categories.none { it.id == categoryId && it.type == type && it.enabled }) return "请选择分类"
+        if (current.members.none { it.id == memberId && it.enabled }) return "请选择成员"
+        val amount = amountText.takeIf { it.isNotBlank() }?.let { AmountUtil.parseToCents(it) }
+        if (amountText.isNotBlank() && amount == null) return "金额格式不正确"
+        val categoryName = current.categories.firstOrNull { it.id == categoryId }?.name ?: "模板"
+        val cleanRemark = remark.trim()
+        val templateName = cleanRemark.takeIf { it.isNotBlank() } ?: categoryName
+        repository.upsertTemplate(
+            Template(
+                id = UUID.randomUUID().toString(),
+                name = templateName,
+                type = type,
+                amount = amount,
+                categoryId = categoryId,
+                memberId = memberId,
+                remark = cleanRemark
+            )
+        )
+        return null
+    }
 
     fun saveRecord(
         type: RecordType,

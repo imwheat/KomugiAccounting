@@ -13,7 +13,6 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -33,8 +32,8 @@ fun HomeScreen(viewModel: HomeViewModel, modifier: Modifier = Modifier) {
         item { Spacer(Modifier.height(10.dp)) }
         item {
             Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                Text("小麦账本", fontSize = 34.sp, fontWeight = FontWeight.Black, color = Color(0xFF263226))
-                Text("本地保存的个人收支记录", color = Color(0xFF5E665B))
+                Text("小麦账本", fontSize = 34.sp, fontWeight = FontWeight.Black, color = MaterialTheme.colorScheme.onBackground)
+                Text("本地保存的个人收支记录", color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
         }
         item { StatCard("本月统计", viewModel.monthStat(data)) }
@@ -43,7 +42,7 @@ fun HomeScreen(viewModel: HomeViewModel, modifier: Modifier = Modifier) {
         item { StatCard("本年统计", viewModel.yearStat(data)) }
         item { Text("最近记录", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold) }
         if (data.records.isEmpty()) {
-            item { Text("还没有账目，点击底部 + 记第一笔。", color = Color(0xFF697066), modifier = Modifier.padding(12.dp)) }
+            item { Text("还没有账目，点击底部 + 记第一笔。", color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(12.dp)) }
         } else {
             items(data.records.take(8), key = { it.id }) { record ->
                 RecordItem(record, categories[record.categoryId], members[record.memberId])

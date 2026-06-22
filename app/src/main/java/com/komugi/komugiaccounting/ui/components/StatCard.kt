@@ -23,7 +23,7 @@ fun StatCard(title: String, stat: StatResult, modifier: Modifier = Modifier) {
     Card(
         modifier = modifier.fillMaxWidth(),
         shape = RoundedCornerShape(24.dp),
-        colors = CardDefaults.cardColors(containerColor = Color.White.copy(alpha = 0.92f)),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
         elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
     ) {
         Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
@@ -40,7 +40,7 @@ fun StatCard(title: String, stat: StatResult, modifier: Modifier = Modifier) {
 @Composable
 private fun StatValue(label: String, amount: Long, color: Color) {
     Column {
-        Text(label, color = Color(0xFF697066), style = MaterialTheme.typography.labelMedium)
+        Text(label, color = MaterialTheme.colorScheme.onSurfaceVariant, style = MaterialTheme.typography.labelMedium)
         Text(AmountUtil.format(amount), color = color, fontWeight = FontWeight.Black)
     }
 }

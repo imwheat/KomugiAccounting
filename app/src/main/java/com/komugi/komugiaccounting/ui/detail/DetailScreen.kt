@@ -12,7 +12,6 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.komugi.komugiaccounting.ui.components.RecordItem
@@ -30,7 +29,7 @@ fun DetailScreen(viewModel: DetailViewModel, modifier: Modifier = Modifier) {
         item { Spacer(Modifier.height(10.dp)) }
         item { Text("账目明细", style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Black) }
         if (data.records.isEmpty()) {
-            item { Text("暂无明细记录。", color = Color(0xFF697066), modifier = Modifier.padding(12.dp)) }
+            item { Text("暂无明细记录。", color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(12.dp)) }
         } else {
             items(data.records, key = { it.id }) { record ->
                 RecordItem(record, categories[record.categoryId], members[record.memberId])

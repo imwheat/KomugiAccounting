@@ -20,4 +20,10 @@ object AmountUtil {
         val abs = kotlin.math.abs(cents)
         return "$sign$symbol${abs / 100}.${(abs % 100).toString().padStart(2, '0')}"
     }
+
+    fun formatPlain(cents: Long): String {
+        val sign = if (cents < 0) "-" else ""
+        val abs = kotlin.math.abs(cents)
+        return "$sign${abs / 100}.${(abs % 100).toString().padStart(2, '0')}"
+    }
 }
