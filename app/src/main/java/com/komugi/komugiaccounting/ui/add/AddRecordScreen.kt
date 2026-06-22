@@ -33,6 +33,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import com.komugi.komugiaccounting.data.model.RecordType
+import com.komugi.komugiaccounting.ui.components.DateTimePickerDialog
 import com.komugi.komugiaccounting.ui.components.NumberKeyboard
 import com.komugi.komugiaccounting.util.AmountUtil
 import com.komugi.komugiaccounting.util.DateTimeUtil
@@ -55,6 +56,7 @@ fun AddRecordScreen(
     var error by rememberSaveable { mutableStateOf<String?>(null) }
     var message by rememberSaveable { mutableStateOf<String?>(null) }
     var loadedRecordId by rememberSaveable { mutableStateOf<String?>(null) }
+    var showDateTimePicker by rememberSaveable { mutableStateOf(false) }
 
     val typeCategories = data.categories.filter { it.enabled && it.type == type }.sortedBy { it.sortOrder }
     var selectedCategoryId by rememberSaveable { mutableStateOf("") }
@@ -186,13 +188,16 @@ fun AddRecordScreen(
                             newMember = ""
                         }) { Text("添加") }
                     }
-                    OutlinedTextField(
-                        value = dateTime,
-                        onValueChange = { dateTime = it },
-                        label = { Text("时间：yyyy-MM-dd HH:mm") },
-                        singleLine = true,
-                        modifier = Modifier.fillMaxWidth()
-                    )
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        OutlinedTextField(
+                            value = dateTime,
+                            onValueChange = { dateTime = it },
+                            label = { Text("时间：yyyy-MM-dd HH:mm") },
+                            singleLine = true,
+                            modifier = Modifier.weight(1f)
+                        )
+                        OutlinedButton(onClick = { showDateTimePicker = true }) { Text("选择") }
+                    }
                     OutlinedTextField(
                         value = remark,
                         onValueChange = { remark = it },
@@ -229,5 +234,16 @@ fun AddRecordScreen(
             }
         }
         item { Spacer(Modifier.height(88.dp)) }
+    }
+
+    if (showDateTimePicker) {
+        DateTimePickerDialog(
+            initialValue = dateTime,
+            onDismiss = { showDateTimePicker = false },
+            onConfirm = {
+                dateTime = it
+                showDateTimePicker = false
+            }
+        )
     }
 }
