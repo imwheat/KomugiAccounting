@@ -171,13 +171,14 @@ class AppDataRepository private constructor(context: Context) {
 
     fun exportJson(): String = storage.exportJson(_data.value)
 
-    fun exportRecordsCsv(): String {
+    fun exportRecordsCsv(startTime: Long? = null, endTime: Long? = null): String {
         val current = _data.value
         val categories = current.categories.associateBy { it.id }
         val members = current.members.associateBy { it.id }
+        val records = current.exportRecords(startTime, endTime)
         val rows = buildList {
             add(listOf("日期", "时间", "类型", "分类", "成员", "金额", "备注"))
-            current.records.sortedByDescending { it.dateTime }.forEach { record ->
+            records.forEach { record ->
                 add(
                     listOf(
                         DateTimeUtil.formatDate(record.dateTime),
@@ -194,13 +195,14 @@ class AppDataRepository private constructor(context: Context) {
         return "\uFEFF" + rows.joinToString("\n") { row -> row.joinToString(",") { it.csvCell() } }
     }
 
-    fun exportWorkbookXlsx(): ByteArray {
+    fun exportWorkbookXlsx(startTime: Long? = null, endTime: Long? = null): ByteArray {
         val current = _data.value
         val categories = current.categories.associateBy { it.id }
         val members = current.members.associateBy { it.id }
+        val records = current.exportRecords(startTime, endTime)
         val detailRows = buildList {
             add(listOf("日期", "时间", "类型", "分类", "成员", "金额（元）", "备注"))
-            current.records.sortedByDescending { it.dateTime }.forEach { record ->
+            records.forEach { record ->
                 add(
                     listOf(
                         DateTimeUtil.formatDate(record.dateTime),
@@ -216,7 +218,7 @@ class AppDataRepository private constructor(context: Context) {
         }
         val monthRows = buildList {
             add(listOf("月份", "收入（元）", "支出（元）", "结余（元）"))
-            current.records
+            records
                 .groupBy { DateTimeUtil.formatDate(it.dateTime).substring(0, 7) }
                 .toSortedMap(compareByDescending { it })
                 .forEach { (month, records) ->
@@ -225,10 +227,10 @@ class AppDataRepository private constructor(context: Context) {
                     add(listOf(month, AmountUtil.formatPlain(income), AmountUtil.formatPlain(expense), AmountUtil.formatPlain(income - expense)))
                 }
         }
-        val totalExpense = current.records.filter { it.type == RecordType.EXPENSE }.sumOf { it.amount }.takeIf { it > 0L } ?: 1L
+        val totalExpense = records.filter { it.type == RecordType.EXPENSE }.sumOf { it.amount }.takeIf { it > 0L } ?: 1L
         val categoryRows = buildList {
             add(listOf("分类", "类型", "金额（元）", "占比"))
-            current.records
+            records
                 .groupBy { it.categoryId }
                 .mapNotNull { (categoryId, records) ->
                     val category = categories[categoryId] ?: return@mapNotNull null
@@ -265,6 +267,13 @@ class AppDataRepository private constructor(context: Context) {
         _data.value = next
         storage.saveData(next)
     }
+
+    private fun AppData.exportRecords(startTime: Long?, endTime: Long?): List<TransactionRecord> =
+        records.asSequence()
+            .filter { startTime == null || it.dateTime >= startTime }
+            .filter { endTime == null || it.dateTime < endTime }
+            .sortedByDescending { it.dateTime }
+            .toList()
 
     private fun String.csvCell(): String {
         val escaped = replace("\"", "\"\"")

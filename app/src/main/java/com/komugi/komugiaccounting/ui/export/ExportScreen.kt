@@ -13,6 +13,7 @@ import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -25,6 +26,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.komugi.komugiaccounting.data.repository.AppDataRepository
 import com.komugi.komugiaccounting.util.DateTimeUtil
+import java.util.Calendar
 
 @Composable
 fun ExportScreen(
@@ -35,6 +37,21 @@ fun ExportScreen(
     val context = LocalContext.current
     var message by rememberSaveable { mutableStateOf<String?>(null) }
     var pendingImportJson by rememberSaveable { mutableStateOf<String?>(null) }
+    var startDate by rememberSaveable { mutableStateOf("") }
+    var endDate by rememberSaveable { mutableStateOf("") }
+
+    fun range(): ExportRange? {
+        val start = startDate.takeIf { it.isNotBlank() }?.let { DateTimeUtil.parseDate(it) }
+        val end = endDate.takeIf { it.isNotBlank() }?.let { DateTimeUtil.parseDate(it) }
+            ?.let { DateTimeUtil.endExclusiveFromStart(it, Calendar.DAY_OF_MONTH, 1) }
+        message = when {
+            startDate.isNotBlank() && start == null -> "开始日期格式应为 yyyy-MM-dd"
+            endDate.isNotBlank() && end == null -> "结束日期格式应为 yyyy-MM-dd"
+            start != null && end != null && start >= end -> "开始日期必须早于结束日期"
+            else -> null
+        }
+        return if (message == null) ExportRange(start, end) else null
+    }
 
     val jsonExportLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.CreateDocument("application/json")
@@ -55,9 +72,10 @@ fun ExportScreen(
         contract = ActivityResultContracts.CreateDocument("text/csv")
     ) { uri ->
         if (uri == null) return@rememberLauncherForActivityResult
+        val exportRange = range() ?: return@rememberLauncherForActivityResult
         runCatching {
             context.contentResolver.openOutputStream(uri)?.use { stream ->
-                stream.write(repository.exportRecordsCsv().toByteArray(Charsets.UTF_8))
+                stream.write(repository.exportRecordsCsv(exportRange.startTime, exportRange.endTime).toByteArray(Charsets.UTF_8))
             } ?: error("无法打开导出文件")
         }.onSuccess {
             message = "账单 CSV 已导出"
@@ -70,9 +88,10 @@ fun ExportScreen(
         contract = ActivityResultContracts.CreateDocument("application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
     ) { uri ->
         if (uri == null) return@rememberLauncherForActivityResult
+        val exportRange = range() ?: return@rememberLauncherForActivityResult
         runCatching {
             context.contentResolver.openOutputStream(uri)?.use { stream ->
-                stream.write(repository.exportWorkbookXlsx())
+                stream.write(repository.exportWorkbookXlsx(exportRange.startTime, exportRange.endTime))
             } ?: error("无法打开导出文件")
         }.onSuccess {
             message = "Excel 工作簿已导出"
@@ -106,19 +125,39 @@ fun ExportScreen(
         ) {
             Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
                 Text("Excel 明细", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
-                Text("导出 Excel 工作簿或 CSV 明细文件，可直接用表格软件打开。")
+                Text("导出 Excel 工作簿或 CSV 明细文件。日期范围留空时导出全部记录。")
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    OutlinedTextField(
+                        value = startDate,
+                        onValueChange = { startDate = it },
+                        label = { Text("开始日期") },
+                        singleLine = true,
+                        modifier = Modifier.weight(1f)
+                    )
+                    OutlinedTextField(
+                        value = endDate,
+                        onValueChange = { endDate = it },
+                        label = { Text("结束日期") },
+                        singleLine = true,
+                        modifier = Modifier.weight(1f)
+                    )
+                }
                 Button(
                     modifier = Modifier.fillMaxWidth(),
                     onClick = {
-                        val name = "komugi-report-${DateTimeUtil.formatDate(DateTimeUtil.now())}.xlsx"
-                        xlsxExportLauncher.launch(name)
+                        if (range() != null) {
+                            val name = "komugi-report-${DateTimeUtil.formatDate(DateTimeUtil.now())}.xlsx"
+                            xlsxExportLauncher.launch(name)
+                        }
                     }
                 ) { Text("导出 Excel 工作簿") }
                 Button(
                     modifier = Modifier.fillMaxWidth(),
                     onClick = {
-                        val name = "komugi-records-${DateTimeUtil.formatDate(DateTimeUtil.now())}.csv"
-                        csvExportLauncher.launch(name)
+                        if (range() != null) {
+                            val name = "komugi-records-${DateTimeUtil.formatDate(DateTimeUtil.now())}.csv"
+                            csvExportLauncher.launch(name)
+                        }
                     }
                 ) { Text("导出账单 CSV") }
             }
@@ -143,7 +182,9 @@ fun ExportScreen(
                 ) { Text("从 JSON 恢复") }
             }
         }
-        message?.let { Text(it, color = MaterialTheme.colorScheme.primary) }
+        message?.let {
+            Text(it, color = if (it.contains("失败") || it.contains("格式") || it.contains("必须")) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.primary)
+        }
     }
 
     pendingImportJson?.let { json ->
@@ -165,3 +206,8 @@ fun ExportScreen(
         )
     }
 }
+
+private data class ExportRange(
+    val startTime: Long?,
+    val endTime: Long?
+)
