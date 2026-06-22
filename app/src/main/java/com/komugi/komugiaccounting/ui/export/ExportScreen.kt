@@ -1,8 +1,11 @@
 package com.komugi.komugiaccounting.ui.export
 
+import android.content.ContentValues
 import android.content.Context
 import android.content.Intent
 import android.net.Uri
+import android.os.Build
+import android.provider.MediaStore
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.Arrangement
@@ -54,6 +57,18 @@ fun ExportScreen(
             else -> null
         }
         return if (message == null) ExportRange(start, end) else null
+    }
+
+    fun saveToDownloads(fileName: String, mimeType: String, bytes: ByteArray) {
+        runCatching {
+            val uri = saveBytesToDownloads(context, fileName, mimeType, bytes)
+            openExportResult(context, uri, mimeType)
+            uri
+        }.onSuccess {
+            message = "已保存到 Downloads"
+        }.onFailure {
+            message = "保存失败：${it.message ?: "未知错误"}"
+        }
     }
 
     val jsonExportLauncher = rememberLauncherForActivityResult(
@@ -154,21 +169,43 @@ fun ExportScreen(
                 Button(
                     modifier = Modifier.fillMaxWidth(),
                     onClick = {
-                        if (range() != null) {
-                            val name = "komugi-report-${DateTimeUtil.formatDate(DateTimeUtil.now())}.xlsx"
-                            xlsxExportLauncher.launch(name)
-                        }
+                        val exportRange = range() ?: return@Button
+                        val name = "komugi-report-${DateTimeUtil.formatDate(DateTimeUtil.now())}.xlsx"
+                        xlsxExportLauncher.launch(name)
                     }
-                ) { Text("导出 Excel 工作簿") }
+                ) { Text("选择位置导出 Excel") }
+                OutlinedButton(
+                    modifier = Modifier.fillMaxWidth(),
+                    onClick = {
+                        val exportRange = range() ?: return@OutlinedButton
+                        val name = "komugi-report-${DateTimeUtil.formatDate(DateTimeUtil.now())}.xlsx"
+                        saveToDownloads(
+                            fileName = name,
+                            mimeType = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                            bytes = repository.exportWorkbookXlsx(exportRange.startTime, exportRange.endTime)
+                        )
+                    }
+                ) { Text("保存 Excel 到 Downloads") }
                 Button(
                     modifier = Modifier.fillMaxWidth(),
                     onClick = {
-                        if (range() != null) {
-                            val name = "komugi-records-${DateTimeUtil.formatDate(DateTimeUtil.now())}.csv"
-                            csvExportLauncher.launch(name)
-                        }
+                        val exportRange = range() ?: return@Button
+                        val name = "komugi-records-${DateTimeUtil.formatDate(DateTimeUtil.now())}.csv"
+                        csvExportLauncher.launch(name)
                     }
-                ) { Text("导出账单 CSV") }
+                ) { Text("选择位置导出 CSV") }
+                OutlinedButton(
+                    modifier = Modifier.fillMaxWidth(),
+                    onClick = {
+                        val exportRange = range() ?: return@OutlinedButton
+                        val name = "komugi-records-${DateTimeUtil.formatDate(DateTimeUtil.now())}.csv"
+                        saveToDownloads(
+                            fileName = name,
+                            mimeType = "text/csv",
+                            bytes = repository.exportRecordsCsv(exportRange.startTime, exportRange.endTime).toByteArray(Charsets.UTF_8)
+                        )
+                    }
+                ) { Text("保存 CSV 到 Downloads") }
             }
         }
         Card(
@@ -184,7 +221,18 @@ fun ExportScreen(
                         val name = "komugi-backup-${DateTimeUtil.formatDate(DateTimeUtil.now())}.json"
                         jsonExportLauncher.launch(name)
                     }
-                ) { Text("导出 JSON 备份") }
+                ) { Text("选择位置导出 JSON") }
+                OutlinedButton(
+                    modifier = Modifier.fillMaxWidth(),
+                    onClick = {
+                        val name = "komugi-backup-${DateTimeUtil.formatDate(DateTimeUtil.now())}.json"
+                        saveToDownloads(
+                            fileName = name,
+                            mimeType = "application/json",
+                            bytes = repository.exportJson().toByteArray(Charsets.UTF_8)
+                        )
+                    }
+                ) { Text("保存 JSON 到 Downloads") }
                 OutlinedButton(
                     modifier = Modifier.fillMaxWidth(),
                     onClick = { importLauncher.launch(arrayOf("application/json", "text/*", "*/*")) }
@@ -220,6 +268,31 @@ private data class ExportRange(
     val startTime: Long?,
     val endTime: Long?
 )
+
+private fun saveBytesToDownloads(context: Context, fileName: String, mimeType: String, bytes: ByteArray): Uri {
+    val resolver = context.contentResolver
+    val values = ContentValues().apply {
+        put(MediaStore.Downloads.DISPLAY_NAME, fileName)
+        put(MediaStore.Downloads.MIME_TYPE, mimeType)
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+            put(MediaStore.Downloads.RELATIVE_PATH, "Download/KomugiAccounting")
+            put(MediaStore.Downloads.IS_PENDING, 1)
+        }
+    }
+    val uri = resolver.insert(MediaStore.Downloads.EXTERNAL_CONTENT_URI, values) ?: error("无法创建下载文件")
+    runCatching {
+        resolver.openOutputStream(uri)?.use { it.write(bytes) } ?: error("无法写入下载文件")
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+            values.clear()
+            values.put(MediaStore.Downloads.IS_PENDING, 0)
+            resolver.update(uri, values, null, null)
+        }
+    }.onFailure {
+        resolver.delete(uri, null, null)
+        throw it
+    }
+    return uri
+}
 
 private fun openExportResult(context: Context, uri: Uri, mimeType: String) {
     val viewIntent = Intent(Intent.ACTION_VIEW).apply {
