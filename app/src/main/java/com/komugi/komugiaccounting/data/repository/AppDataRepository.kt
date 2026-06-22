@@ -10,6 +10,7 @@ import com.komugi.komugiaccounting.data.model.Template
 import com.komugi.komugiaccounting.data.model.TransactionRecord
 import com.komugi.komugiaccounting.data.storage.JsonFileStorage
 import com.komugi.komugiaccounting.util.AmountUtil
+import com.komugi.komugiaccounting.util.CsvTableBuilder
 import com.komugi.komugiaccounting.util.DateTimeUtil
 import com.komugi.komugiaccounting.util.XlsxWorkbookBuilder
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -203,7 +204,7 @@ class AppDataRepository private constructor(context: Context) {
                 )
             }
         }
-        return "\uFEFF" + rows.joinToString("\n") { row -> row.joinToString(",") { it.csvCell() } }
+        return CsvTableBuilder.build(rows)
     }
 
     fun exportWorkbookXlsx(startTime: Long? = null, endTime: Long? = null): ByteArray {
@@ -285,11 +286,6 @@ class AppDataRepository private constructor(context: Context) {
             .filter { endTime == null || it.dateTime < endTime }
             .sortedByDescending { it.dateTime }
             .toList()
-
-    private fun String.csvCell(): String {
-        val escaped = replace("\"", "\"\"")
-        return if (any { it == ',' || it == '"' || it == '\n' || it == '\r' }) "\"$escaped\"" else escaped
-    }
 
     companion object {
         @Volatile private var instance: AppDataRepository? = null
