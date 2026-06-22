@@ -40,7 +40,7 @@ import com.komugi.komugiaccounting.util.DateTimeUtil
 @Composable
 fun AddRecordScreen(
     viewModel: AddRecordViewModel,
-    onSaved: () -> Unit,
+    onSaved: (String) -> Unit,
     onBack: () -> Unit,
     recordId: String? = null,
     modifier: Modifier = Modifier
@@ -215,7 +215,7 @@ fun AddRecordScreen(
                                     amount = ""
                                     remark = ""
                                     dateTime = DateTimeUtil.formatDateTime(DateTimeUtil.now())
-                                    onSaved()
+                                    onSaved(if (recordId == null) "保存成功" else "修改已保存")
                                 }
                             }
                         ) { Text(if (recordId == null) "完成保存" else "保存修改") }

@@ -14,12 +14,15 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.NavigationBar
 import androidx.compose.material3.NavigationBarItem
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.SnackbarHost
+import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import com.komugi.komugiaccounting.data.model.ThemeMode
@@ -36,6 +39,7 @@ import com.komugi.komugiaccounting.ui.home.HomeViewModel
 import com.komugi.komugiaccounting.ui.settings.SettingsScreen
 import com.komugi.komugiaccounting.ui.theme.KomugiAccountingTheme
 import androidx.compose.foundation.isSystemInDarkTheme
+import kotlinx.coroutines.launch
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -64,6 +68,8 @@ fun AccountingApp(repository: AppDataRepository) {
     val addRecordViewModel = remember(repository) { AddRecordViewModel(repository) }
     val detailViewModel = remember(repository) { DetailViewModel(repository) }
     val bottomScreens = listOf(Screen.Home, Screen.Detail, Screen.Chart, Screen.Calendar, Screen.Settings)
+    val snackbarHostState = remember { SnackbarHostState() }
+    val coroutineScope = rememberCoroutineScope()
     val goHome = { currentScreen = Screen.Home }
 
     BackHandler(enabled = currentScreen != Screen.Home) {
@@ -71,6 +77,7 @@ fun AccountingApp(repository: AppDataRepository) {
     }
 
     Scaffold(
+        snackbarHost = { SnackbarHost(snackbarHostState) },
         floatingActionButton = {
             FloatingActionButton(onClick = {
                 editingRecordId = null
@@ -111,7 +118,10 @@ fun AccountingApp(repository: AppDataRepository) {
                 )
                 Screen.Add -> AddRecordScreen(
                     viewModel = addRecordViewModel,
-                    onSaved = goHome,
+                    onSaved = { message ->
+                        goHome()
+                        coroutineScope.launch { snackbarHostState.showSnackbar(message) }
+                    },
                     onBack = goHome,
                     recordId = editingRecordId
                 )

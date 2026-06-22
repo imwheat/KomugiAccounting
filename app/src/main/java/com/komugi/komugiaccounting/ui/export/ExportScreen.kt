@@ -17,7 +17,6 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
@@ -36,7 +35,8 @@ fun ExportScreen(
     val context = LocalContext.current
     var message by rememberSaveable { mutableStateOf<String?>(null) }
     var pendingImportJson by rememberSaveable { mutableStateOf<String?>(null) }
-    val exportLauncher = rememberLauncherForActivityResult(
+
+    val jsonExportLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.CreateDocument("application/json")
     ) { uri ->
         if (uri == null) return@rememberLauncherForActivityResult
@@ -50,6 +50,22 @@ fun ExportScreen(
             message = "导出失败：${it.message ?: "未知错误"}"
         }
     }
+
+    val csvExportLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.CreateDocument("text/csv")
+    ) { uri ->
+        if (uri == null) return@rememberLauncherForActivityResult
+        runCatching {
+            context.contentResolver.openOutputStream(uri)?.use { stream ->
+                stream.write(repository.exportRecordsCsv().toByteArray(Charsets.UTF_8))
+            } ?: error("无法打开导出文件")
+        }.onSuccess {
+            message = "账单 CSV 已导出"
+        }.onFailure {
+            message = "导出失败：${it.message ?: "未知错误"}"
+        }
+    }
+
     val importLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.OpenDocument()
     ) { uri ->
@@ -74,13 +90,29 @@ fun ExportScreen(
             colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
         ) {
             Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                Text("Excel 明细", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+                Text("导出 CSV 明细文件，可直接用 Excel 或表格软件打开。")
+                Button(
+                    modifier = Modifier.fillMaxWidth(),
+                    onClick = {
+                        val name = "komugi-records-${DateTimeUtil.formatDate(DateTimeUtil.now())}.csv"
+                        csvExportLauncher.launch(name)
+                    }
+                ) { Text("导出账单 CSV") }
+            }
+        }
+        Card(
+            modifier = Modifier.fillMaxWidth(),
+            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
+        ) {
+            Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
                 Text("JSON 备份", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
                 Text("导出的 JSON 包含账单、成员、分类、模板和设置。恢复会覆盖当前本地数据。")
                 Button(
                     modifier = Modifier.fillMaxWidth(),
                     onClick = {
                         val name = "komugi-backup-${DateTimeUtil.formatDate(DateTimeUtil.now())}.json"
-                        exportLauncher.launch(name)
+                        jsonExportLauncher.launch(name)
                     }
                 ) { Text("导出 JSON 备份") }
                 OutlinedButton(

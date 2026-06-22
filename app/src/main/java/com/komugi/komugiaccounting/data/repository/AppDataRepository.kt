@@ -9,6 +9,8 @@ import com.komugi.komugiaccounting.data.model.RecordType
 import com.komugi.komugiaccounting.data.model.Template
 import com.komugi.komugiaccounting.data.model.TransactionRecord
 import com.komugi.komugiaccounting.data.storage.JsonFileStorage
+import com.komugi.komugiaccounting.util.AmountUtil
+import com.komugi.komugiaccounting.util.DateTimeUtil
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -125,6 +127,29 @@ class AppDataRepository private constructor(context: Context) {
 
     fun exportJson(): String = storage.exportJson(_data.value)
 
+    fun exportRecordsCsv(): String {
+        val current = _data.value
+        val categories = current.categories.associateBy { it.id }
+        val members = current.members.associateBy { it.id }
+        val rows = buildList {
+            add(listOf("日期", "时间", "类型", "分类", "成员", "金额", "备注"))
+            current.records.sortedByDescending { it.dateTime }.forEach { record ->
+                add(
+                    listOf(
+                        DateTimeUtil.formatDate(record.dateTime),
+                        DateTimeUtil.formatTime(record.dateTime),
+                        if (record.type == RecordType.INCOME) "收入" else "支出",
+                        categories[record.categoryId]?.name ?: "未分类",
+                        members[record.memberId]?.name ?: "未知成员",
+                        AmountUtil.formatPlain(record.amount),
+                        record.remark
+                    )
+                )
+            }
+        }
+        return "\uFEFF" + rows.joinToString("\n") { row -> row.joinToString(",") { it.csvCell() } }
+    }
+
     fun importJson(jsonText: String): Result<Unit> = runCatching {
         val imported = storage.importJson(jsonText)
         _data.value = imported
@@ -135,6 +160,11 @@ class AppDataRepository private constructor(context: Context) {
         val next = block(_data.value)
         _data.value = next
         storage.saveData(next)
+    }
+
+    private fun String.csvCell(): String {
+        val escaped = replace("\"", "\"\"")
+        return if (any { it == ',' || it == '"' || it == '\n' || it == '\r' }) "\"$escaped\"" else escaped
     }
 
     companion object {
