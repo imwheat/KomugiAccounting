@@ -1,9 +1,11 @@
 package com.komugi.komugiaccounting.ui.category
 
+import androidx.compose.foundation.gestures.detectDragGesturesAfterLongPress
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -17,8 +19,10 @@ import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -26,10 +30,14 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
+import com.komugi.komugiaccounting.data.model.Category
 import com.komugi.komugiaccounting.data.model.RecordType
 import com.komugi.komugiaccounting.data.repository.AppDataRepository
+import kotlin.math.roundToInt
 
 @Composable
 fun CategoryScreen(
@@ -41,10 +49,24 @@ fun CategoryScreen(
     var selectedType by rememberSaveable { mutableStateOf(RecordType.EXPENSE) }
     var newName by rememberSaveable { mutableStateOf("") }
     var message by rememberSaveable { mutableStateOf<String?>(null) }
+    var draggedId by rememberSaveable { mutableStateOf<String?>(null) }
+    var dragOffset by remember { mutableFloatStateOf(0f) }
+    var orderedIds by rememberSaveable { mutableStateOf(emptyList<String>()) }
     val editingNames = remember { mutableStateMapOf<String, String>() }
-    val categories = data.categories
+    val sortedCategories = data.categories
         .filter { it.type == selectedType }
-        .sortedBy { it.sortOrder }
+        .sortedWith(compareBy({ it.sortOrder }, { it.name }))
+
+    LaunchedEffect(selectedType, sortedCategories.map { it.id }) {
+        val currentIds = sortedCategories.map { it.id }
+        if (draggedId == null && orderedIds != currentIds) {
+            orderedIds = currentIds
+        }
+    }
+
+    val categoryById = sortedCategories.associateBy { it.id }
+    val categories = orderedIds.mapNotNull { categoryById[it] }
+    val itemHeightPx = 132f
 
     LazyColumn(
         modifier = modifier.padding(18.dp),
@@ -63,6 +85,7 @@ fun CategoryScreen(
                     onClick = {
                         selectedType = RecordType.EXPENSE
                         message = null
+                        draggedId = null
                     },
                     label = { Text("支出分类") }
                 )
@@ -71,6 +94,7 @@ fun CategoryScreen(
                     onClick = {
                         selectedType = RecordType.INCOME
                         message = null
+                        draggedId = null
                     },
                     label = { Text("收入分类") }
                 )
@@ -98,63 +122,129 @@ fun CategoryScreen(
                 }
             }
         }
+        item {
+            Text("长按分类卡片可拖动排序。", color = MaterialTheme.colorScheme.onSurfaceVariant)
+        }
         message?.let {
             item { Text(it, color = MaterialTheme.colorScheme.error, modifier = Modifier.padding(horizontal = 4.dp)) }
         }
         items(categories, key = { it.id }) { category ->
-            val editName = editingNames.getOrPut(category.id) { category.name }
             val index = categories.indexOfFirst { it.id == category.id }
-            Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)) {
-                Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                    Text(if (category.isSystem) "系统预置分类" else "自定义分类", color = MaterialTheme.colorScheme.onSurfaceVariant)
-                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                        OutlinedTextField(
-                            value = editName,
-                            onValueChange = { editingNames[category.id] = it },
-                            label = { Text("名称") },
-                            singleLine = true,
-                            modifier = Modifier.weight(1f)
-                        )
-                        Button(onClick = {
-                            repository.updateCategory(category.id, editName)
-                            message = null
-                        }) { Text("保存") }
-                    }
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Text(if (category.enabled) "记账页显示" else "记账页隐藏")
-                        Switch(
-                            checked = category.enabled,
-                            onCheckedChange = {
-                                repository.setCategoryEnabled(category.id, it)
+            val offsetY = if (draggedId == category.id) dragOffset.roundToInt() else 0
+            CategoryRow(
+                category = category,
+                index = index,
+                lastIndex = categories.lastIndex,
+                editName = editingNames.getOrPut(category.id) { category.name },
+                onEditName = { editingNames[category.id] = it },
+                onSave = {
+                    repository.updateCategory(category.id, editingNames[category.id].orEmpty())
+                    message = null
+                },
+                onEnabledChange = {
+                    repository.setCategoryEnabled(category.id, it)
+                    message = null
+                },
+                onMoveUp = {
+                    repository.moveCategory(category.id, -1)
+                    message = null
+                },
+                onMoveDown = {
+                    repository.moveCategory(category.id, 1)
+                    message = null
+                },
+                onDelete = {
+                    message = repository.deleteCategory(category.id) ?: "分类已删除"
+                },
+                modifier = Modifier
+                    .offset { IntOffset(0, offsetY) }
+                    .pointerInput(categories, draggedId) {
+                        detectDragGesturesAfterLongPress(
+                            onDragStart = {
+                                draggedId = category.id
+                                dragOffset = 0f
+                            },
+                            onDragEnd = {
+                                draggedId = null
+                                dragOffset = 0f
+                                repository.reorderCategories(selectedType, orderedIds)
                                 message = null
+                            },
+                            onDragCancel = {
+                                draggedId = null
+                                dragOffset = 0f
+                                orderedIds = sortedCategories.map { it.id }
+                            },
+                            onDrag = { change, dragAmount ->
+                                change.consume()
+                                if (draggedId != category.id) return@detectDragGesturesAfterLongPress
+                                dragOffset += dragAmount.y
+                                val currentIndex = orderedIds.indexOf(category.id)
+                                if (currentIndex < 0) return@detectDragGesturesAfterLongPress
+                                val targetIndex = (currentIndex + (dragOffset / itemHeightPx).roundToInt()).coerceIn(0, orderedIds.lastIndex)
+                                if (targetIndex != currentIndex) {
+                                    orderedIds = orderedIds.move(currentIndex, targetIndex)
+                                    dragOffset = 0f
+                                }
                             }
                         )
                     }
-                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        OutlinedButton(
-                            enabled = index > 0,
-                            onClick = {
-                                repository.moveCategory(category.id, -1)
-                                message = null
-                            }
-                        ) { Text("上移") }
-                        OutlinedButton(
-                            enabled = index in 0 until categories.lastIndex,
-                            onClick = {
-                                repository.moveCategory(category.id, 1)
-                                message = null
-                            }
-                        ) { Text("下移") }
-                        OutlinedButton(onClick = {
-                            message = repository.deleteCategory(category.id) ?: "分类已删除"
-                        }) { Text("删除") }
-                    }
-                }
+            )
+        }
+    }
+}
+
+@Composable
+private fun CategoryRow(
+    category: Category,
+    index: Int,
+    lastIndex: Int,
+    editName: String,
+    onEditName: (String) -> Unit,
+    onSave: () -> Unit,
+    onEnabledChange: (Boolean) -> Unit,
+    onMoveUp: () -> Unit,
+    onMoveDown: () -> Unit,
+    onDelete: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    Card(modifier = modifier, colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)) {
+        Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+            Text(if (category.isSystem) "系统预置分类" else "自定义分类", color = MaterialTheme.colorScheme.onSurfaceVariant)
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                OutlinedTextField(
+                    value = editName,
+                    onValueChange = onEditName,
+                    label = { Text("名称") },
+                    singleLine = true,
+                    modifier = Modifier.weight(1f)
+                )
+                Button(onClick = onSave) { Text("保存") }
+            }
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(if (category.enabled) "记账页显示" else "记账页隐藏")
+                Switch(
+                    checked = category.enabled,
+                    onCheckedChange = onEnabledChange
+                )
+            }
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                OutlinedButton(enabled = index > 0, onClick = onMoveUp) { Text("上移") }
+                OutlinedButton(enabled = index in 0 until lastIndex, onClick = onMoveDown) { Text("下移") }
+                OutlinedButton(onClick = onDelete) { Text("删除") }
             }
         }
     }
+}
+
+private fun List<String>.move(from: Int, to: Int): List<String> {
+    if (from == to) return this
+    val mutable = toMutableList()
+    val item = mutable.removeAt(from)
+    mutable.add(to, item)
+    return mutable
 }

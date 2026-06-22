@@ -149,6 +149,19 @@ class AppDataRepository private constructor(context: Context) {
         )
     }
 
+    fun reorderCategories(type: RecordType, orderedIds: List<String>) = update { current ->
+        val sortMap = orderedIds.withIndex().associate { (index, id) -> id to index + 1 }
+        current.copy(
+            categories = current.categories.map { category ->
+                if (category.type == type && category.id in sortMap) {
+                    category.copy(sortOrder = sortMap.getValue(category.id))
+                } else {
+                    category
+                }
+            }
+        )
+    }
+
     fun upsertTemplate(template: Template) = update { current ->
         val cleanName = template.name.trim()
         if (cleanName.isEmpty()) return@update current
