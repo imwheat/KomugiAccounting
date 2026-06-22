@@ -5,7 +5,9 @@ import android.content.Context
 import android.content.Intent
 import android.net.Uri
 import android.os.Build
+import android.os.Environment
 import android.provider.MediaStore
+import androidx.core.content.FileProvider
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.Arrangement
@@ -32,6 +34,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.komugi.komugiaccounting.data.repository.AppDataRepository
 import com.komugi.komugiaccounting.util.DateTimeUtil
+import java.io.File
 import java.util.Calendar
 
 @Composable
@@ -270,6 +273,10 @@ private data class ExportRange(
 )
 
 private fun saveBytesToDownloads(context: Context, fileName: String, mimeType: String, bytes: ByteArray): Uri {
+    if (Build.VERSION.SDK_INT < Build.VERSION_CODES.Q) {
+        return saveBytesToExternalExports(context, fileName, bytes)
+    }
+
     val resolver = context.contentResolver
     val values = ContentValues().apply {
         put(MediaStore.Downloads.DISPLAY_NAME, fileName)
@@ -292,6 +299,22 @@ private fun saveBytesToDownloads(context: Context, fileName: String, mimeType: S
         throw it
     }
     return uri
+}
+
+private fun saveBytesToExternalExports(context: Context, fileName: String, bytes: ByteArray): Uri {
+    val baseDir = context.getExternalFilesDir(Environment.DIRECTORY_DOWNLOADS)
+        ?: context.getExternalFilesDir(null)
+        ?: error("无法访问外部存储目录")
+    val exportDir = File(baseDir, "exports").apply {
+        if (!exists() && !mkdirs()) error("无法创建导出目录")
+    }
+    val exportFile = File(exportDir, fileName)
+    exportFile.writeBytes(bytes)
+    return FileProvider.getUriForFile(
+        context,
+        "${context.packageName}.fileprovider",
+        exportFile
+    )
 }
 
 private fun openExportResult(context: Context, uri: Uri, mimeType: String) {
