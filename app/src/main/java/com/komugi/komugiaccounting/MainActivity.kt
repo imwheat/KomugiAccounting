@@ -67,6 +67,7 @@ fun AccountingApp(repository: AppDataRepository) {
     var currentScreen by remember { mutableStateOf(Screen.Home) }
     var previousScreens by remember { mutableStateOf<List<Screen>>(emptyList()) }
     var editingRecordId by remember { mutableStateOf<String?>(null) }
+    var showHomeBottomBar by remember { mutableStateOf(true) }
     val homeViewModel = remember(repository) { HomeViewModel(repository) }
     val addRecordViewModel = remember(repository) { AddRecordViewModel(repository) }
     val detailViewModel = remember(repository) { DetailViewModel(repository) }
@@ -102,7 +103,7 @@ fun AccountingApp(repository: AppDataRepository) {
     Scaffold(
         snackbarHost = { SnackbarHost(snackbarHostState) },
         bottomBar = {
-            if (currentScreen != Screen.Add) {
+            if (currentScreen != Screen.Add && (currentScreen != Screen.Home || showHomeBottomBar)) {
                 NavigationBar(containerColor = MaterialTheme.colorScheme.surface.copy(alpha = 0.94f)) {
                     bottomScreens.forEach { screen ->
                         NavigationBarItem(
@@ -133,7 +134,8 @@ fun AccountingApp(repository: AppDataRepository) {
                     onEditRecord = { recordId ->
                         editingRecordId = recordId
                         navigateTo(Screen.Add)
-                    }
+                    },
+                    onBottomBarVisibleChange = { showHomeBottomBar = it }
                 )
                 Screen.Template -> TemplateScreen(
                     repository = repository,

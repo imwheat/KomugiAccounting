@@ -2,6 +2,7 @@
 
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectHorizontalDragGestures
+import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -18,6 +19,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
@@ -48,10 +50,20 @@ fun HomeScreen(
     detailViewModel: DetailViewModel,
     repository: AppDataRepository,
     onEditRecord: (String) -> Unit,
+    onBottomBarVisibleChange: (Boolean) -> Unit,
     modifier: Modifier = Modifier
 ) {
     var page by rememberSaveable { mutableIntStateOf(0) }
     var detailFilterRequest by remember { mutableStateOf<DetailFilterRequest?>(null) }
+    var detailBackSignal by remember { mutableIntStateOf(0) }
+
+    LaunchedEffect(page) {
+        onBottomBarVisibleChange(page == 0)
+    }
+
+    BackHandler(enabled = page != 0) {
+        if (page == 1) detailBackSignal += 1 else page = 0
+    }
 
     Column(modifier = modifier) {
         when (page) {
@@ -72,6 +84,10 @@ fun HomeScreen(
                 onEditRecord = onEditRecord,
                 filterRequest = detailFilterRequest,
                 onBack = { page = 0 },
+                backSignal = detailBackSignal,
+                onBackSignalConsumed = { consumed ->
+                    if (!consumed) page = 0
+                },
                 modifier = Modifier.swipeRightToBack { page = 0 }
             )
             2 -> ChartScreen(

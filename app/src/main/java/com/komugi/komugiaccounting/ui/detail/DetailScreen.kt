@@ -1,6 +1,7 @@
 package com.komugi.komugiaccounting.ui.detail
 
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.detectHorizontalDragGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
@@ -30,6 +31,9 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextOverflow
@@ -74,6 +78,8 @@ fun DetailScreen(
     onEditRecord: (String) -> Unit,
     filterRequest: DetailFilterRequest? = null,
     onBack: () -> Unit,
+    backSignal: Int = 0,
+    onBackSignalConsumed: (Boolean) -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     val data by viewModel.data.collectAsState()
@@ -93,6 +99,23 @@ fun DetailScreen(
     var endDate by rememberSaveable { mutableStateOf("") }
     var sortMode by rememberSaveable { mutableStateOf(SortMode.TIME_DESC) }
     var includeRefunded by rememberSaveable { mutableStateOf(true) }
+
+    fun goBackOneLevel(): Boolean {
+        return if (subPage == DetailSubPage.MAIN) {
+            false
+        } else {
+            subPage = if (subPage == DetailSubPage.FILTER || subPage == DetailSubPage.SORT) {
+                DetailSubPage.MAIN
+            } else {
+                DetailSubPage.FILTER
+            }
+            true
+        }
+    }
+
+    LaunchedEffect(backSignal) {
+        if (backSignal > 0) onBackSignalConsumed(goBackOneLevel())
+    }
 
     LaunchedEffect(filterRequest) {
         filterRequest?.let { request ->
@@ -146,6 +169,9 @@ fun DetailScreen(
     } else {
         emptyList()
     }
+    val pageModifier = modifier.swipeRight {
+        if (!goBackOneLevel()) onBack()
+    }
 
     when (subPage) {
         DetailSubPage.MAIN -> DetailMainPage(
@@ -169,7 +195,7 @@ fun DetailScreen(
                 menuExpanded = false
                 subPage = DetailSubPage.SORT
             },
-            modifier = modifier
+            modifier = pageModifier
         )
         DetailSubPage.FILTER -> FilterListPage(
             selectedType = selectedType,
@@ -192,7 +218,7 @@ fun DetailScreen(
                 endDate = ""
                 includeRefunded = true
             },
-            modifier = modifier
+            modifier = pageModifier
         )
         DetailSubPage.SORT -> ChoicePage(
             title = "排序",
@@ -204,16 +230,9 @@ fun DetailScreen(
                 "金额升序" to { sortMode = SortMode.AMOUNT_ASC }
             ),
             selectedLabel = sortMode.label(),
-            modifier = modifier
+            modifier = pageModifier
         )
-        DetailSubPage.TIME -> TimeFilterPage(
-            startDate = startDate,
-            endDate = endDate,
-            onStartDateChange = { startDate = it },
-            onEndDateChange = { endDate = it },
-            onBack = { subPage = DetailSubPage.FILTER },
-            modifier = modifier
-        )
+        DetailSubPage.TIME -> TimeFilterPage(startDate, endDate, { startDate = it }, { endDate = it }, { subPage = DetailSubPage.FILTER }, pageModifier)
         DetailSubPage.TYPE -> ChoicePage(
             title = "流水类型",
             onBack = { subPage = DetailSubPage.FILTER },
@@ -232,37 +251,12 @@ fun DetailScreen(
                 }
             ),
             selectedLabel = selectedType?.label() ?: "全部",
-            modifier = modifier
+            modifier = pageModifier
         )
-        DetailSubPage.CATEGORY -> CategoryFilterPage(
-            categories = data.categories.filter { selectedType == null || it.type == selectedType },
-            selectedIds = selectedCategoryIds,
-            onToggle = { selectedCategoryIds = selectedCategoryIds.toggle(it) },
-            onBack = { subPage = DetailSubPage.FILTER },
-            modifier = modifier
-        )
-        DetailSubPage.MEMBER -> MemberFilterPage(
-            members = data.members,
-            selectedIds = selectedMemberIds,
-            onToggle = { selectedMemberIds = selectedMemberIds.toggle(it) },
-            onBack = { subPage = DetailSubPage.FILTER },
-            modifier = modifier
-        )
-        DetailSubPage.AMOUNT -> AmountFilterPage(
-            minAmount = minAmount,
-            maxAmount = maxAmount,
-            onMinAmountChange = { minAmount = it },
-            onMaxAmountChange = { maxAmount = it },
-            onBack = { subPage = DetailSubPage.FILTER },
-            modifier = modifier
-        )
-        DetailSubPage.REMARK -> TextFilterPage(
-            title = "备注",
-            value = remarkKeyword,
-            onValueChange = { remarkKeyword = it },
-            onBack = { subPage = DetailSubPage.FILTER },
-            modifier = modifier
-        )
+        DetailSubPage.CATEGORY -> CategoryFilterPage(data.categories.filter { selectedType == null || it.type == selectedType }, selectedCategoryIds, { selectedCategoryIds = selectedCategoryIds.toggle(it) }, { subPage = DetailSubPage.FILTER }, pageModifier)
+        DetailSubPage.MEMBER -> MemberFilterPage(data.members, selectedMemberIds, { selectedMemberIds = selectedMemberIds.toggle(it) }, { subPage = DetailSubPage.FILTER }, pageModifier)
+        DetailSubPage.AMOUNT -> AmountFilterPage(minAmount, maxAmount, { minAmount = it }, { maxAmount = it }, { subPage = DetailSubPage.FILTER }, pageModifier)
+        DetailSubPage.REMARK -> TextFilterPage("备注", remarkKeyword, { remarkKeyword = it }, { subPage = DetailSubPage.FILTER }, pageModifier)
         DetailSubPage.REFUND -> ChoicePage(
             title = "退款",
             onBack = { subPage = DetailSubPage.FILTER },
@@ -271,7 +265,7 @@ fun DetailScreen(
                 "隐藏已退款" to { includeRefunded = false }
             ),
             selectedLabel = if (includeRefunded) "显示已退款" else "隐藏已退款",
-            modifier = modifier
+            modifier = pageModifier
         )
     }
 }
@@ -294,14 +288,8 @@ private fun DetailMainPage(
     onOpenSort: () -> Unit,
     modifier: Modifier = Modifier
 ) {
-    val groupedRecords = filteredRecords.groupBy { DateTimeUtil.startOfDay(it.dateTime) }
-        .toList()
-        .sortedByDescending { it.first }
-
-    LazyColumn(
-        modifier = modifier.padding(horizontal = 18.dp),
-        verticalArrangement = Arrangement.spacedBy(12.dp)
-    ) {
+    val groupedRecords = filteredRecords.groupBy { DateTimeUtil.startOfDay(it.dateTime) }.toList().sortedByDescending { it.first }
+    LazyColumn(modifier = modifier.padding(horizontal = 18.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
         item { Spacer(Modifier.height(10.dp)) }
         item {
             Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
@@ -310,7 +298,7 @@ private fun DetailMainPage(
                     Text("账目明细", style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Black)
                 }
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    OutlinedButton(onClick = onToggleSearch) { Text("🔍") }
+                    OutlinedButton(onClick = onToggleSearch) { Text("搜索") }
                     Column {
                         OutlinedButton(onClick = { onMenuExpandedChange(true) }) { Text("...") }
                         DropdownMenu(expanded = menuExpanded, onDismissRequest = { onMenuExpandedChange(false) }) {
@@ -333,9 +321,7 @@ private fun DetailMainPage(
                 )
             }
         }
-        filterError?.let {
-            item { Text(it, color = MaterialTheme.colorScheme.error) }
-        }
+        filterError?.let { item { Text(it, color = MaterialTheme.colorScheme.error) } }
         if (filteredRecords.isEmpty()) {
             item { Text("暂无符合条件的明细记录。", color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(12.dp)) }
         } else {
@@ -365,7 +351,7 @@ private fun FilterListPage(
     modifier: Modifier = Modifier
 ) {
     LazyColumn(modifier = modifier.padding(horizontal = 18.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-        item { Header(title = "筛选", onBack = onBack) }
+        item { Header("筛选", onBack) }
         item { FilterRow("时间", timeText, onClick = { onOpen(DetailSubPage.TIME) }) }
         item { FilterRow("分类", selectedCategoryText, onClick = { onOpen(DetailSubPage.CATEGORY) }) }
         item { FilterRow("流水类型", selectedType?.label() ?: "全部", onClick = { onOpen(DetailSubPage.TYPE) }) }
@@ -397,13 +383,7 @@ private fun FilterRow(title: String, value: String, onClick: () -> Unit) {
 }
 
 @Composable
-private fun ChoicePage(
-    title: String,
-    onBack: () -> Unit,
-    options: List<Pair<String, () -> Unit>>,
-    selectedLabel: String,
-    modifier: Modifier = Modifier
-) {
+private fun ChoicePage(title: String, onBack: () -> Unit, options: List<Pair<String, () -> Unit>>, selectedLabel: String, modifier: Modifier = Modifier) {
     LazyColumn(modifier = modifier.padding(horizontal = 18.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
         item { Header(title, onBack) }
         items(options, key = { it.first }) { (label, action) ->
@@ -413,14 +393,7 @@ private fun ChoicePage(
 }
 
 @Composable
-private fun TimeFilterPage(
-    startDate: String,
-    endDate: String,
-    onStartDateChange: (String) -> Unit,
-    onEndDateChange: (String) -> Unit,
-    onBack: () -> Unit,
-    modifier: Modifier = Modifier
-) {
+private fun TimeFilterPage(startDate: String, endDate: String, onStartDateChange: (String) -> Unit, onEndDateChange: (String) -> Unit, onBack: () -> Unit, modifier: Modifier = Modifier) {
     LazyColumn(modifier = modifier.padding(horizontal = 18.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
         item { Header("时间", onBack) }
         item { OutlinedButton(onClick = { setDateRange("month", onStartDateChange, onEndDateChange) }, modifier = Modifier.fillMaxWidth()) { Text("本月") } }
@@ -483,11 +456,8 @@ private fun TextFilterPage(title: String, value: String, onValueChange: (String)
     }
 }
 
-private fun Set<String>.toggle(value: String): Set<String> =
-    if (value in this) this - value else this + value
-
+private fun Set<String>.toggle(value: String): Set<String> = if (value in this) this - value else this + value
 private fun RecordType.label(): String = if (this == RecordType.EXPENSE) "支出" else "收入"
-
 private fun SortMode.label(): String = when (this) {
     SortMode.TIME_DESC -> "时间降序"
     SortMode.TIME_ASC -> "时间升序"
@@ -534,21 +504,39 @@ private fun setDateRange(mode: String, onStartDateChange: (String) -> Unit, onEn
             set(Calendar.MILLISECOND, 0)
         }.timeInMillis
     }
-    val endExclusive = when (mode) {
-        "month" -> DateTimeUtil.endExclusiveFromStart(start, Calendar.MONTH, 1)
-        else -> DateTimeUtil.endExclusiveFromStart(start, Calendar.YEAR, 1)
-    }
+    val endExclusive = if (mode == "month") DateTimeUtil.endExclusiveFromStart(start, Calendar.MONTH, 1) else DateTimeUtil.endExclusiveFromStart(start, Calendar.YEAR, 1)
     onStartDateChange(DateTimeUtil.formatDate(start))
     onEndDateChange(DateTimeUtil.formatDate(endExclusive - 1))
+}
+
+private fun Modifier.swipeRight(onBack: () -> Unit): Modifier = pointerInput(Unit) {
+    var totalDrag = 0f
+    detectHorizontalDragGestures(
+        onDragStart = { totalDrag = 0f },
+        onHorizontalDrag = { _, dragAmount -> totalDrag += dragAmount },
+        onDragEnd = { if (totalDrag > 90f) onBack() }
+    )
 }
 
 @Composable
 private fun DayHeader(dayStart: Long, records: List<TransactionRecord>) {
     val stat = StatisticsCalculator.calculate(records, dayStart, DateTimeUtil.endExclusiveFromStart(dayStart, Calendar.DAY_OF_MONTH, 1))
     Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)) {
-        Row(modifier = Modifier.fillMaxWidth().padding(12.dp), horizontalArrangement = Arrangement.SpaceBetween) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(12.dp),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
             Text(DateTimeUtil.formatDate(dayStart), fontWeight = FontWeight.Bold)
-            Text("收 ${AmountUtil.format(stat.income)}  支 ${AmountUtil.format(stat.expense)}  余 ${AmountUtil.format(stat.balance)}", color = MaterialTheme.colorScheme.onSurfaceVariant)
+            Column(horizontalAlignment = Alignment.End, verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                    Text("收 ${AmountUtil.format(stat.income)}", color = Color(0xFF1F7A4D), fontWeight = FontWeight.SemiBold)
+                    Text("支 ${AmountUtil.format(stat.expense)}", color = Color(0xFFB3542E), fontWeight = FontWeight.SemiBold)
+                }
+                Text("余 ${AmountUtil.format(stat.balance)}", color = Color(0xFF2E5A87), fontWeight = FontWeight.SemiBold)
+            }
         }
     }
 }
