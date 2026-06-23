@@ -13,11 +13,13 @@ import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
@@ -78,7 +80,10 @@ private fun HomeOverviewScreen(
     val categories = data.categories.associateBy { it.id }
     val members = data.members.associateBy { it.id }
     var monthOffset by rememberSaveable { mutableIntStateOf(0) }
-    val highestExpense = viewModel.highestExpenseCategory(data, monthOffset)
+    var expenseExpanded by rememberSaveable { mutableStateOf(false) }
+    var incomeExpanded by rememberSaveable { mutableStateOf(false) }
+    val expenseSummary = viewModel.monthExpenseSummary(data, monthOffset)
+    val incomeSummary = viewModel.monthIncomeSummary(data, monthOffset)
 
     LazyColumn(
         modifier = modifier.padding(horizontal = 18.dp),
@@ -99,20 +104,30 @@ private fun HomeOverviewScreen(
         }
         item { StatCard(viewModel.monthTitle(monthOffset), viewModel.monthStat(data, monthOffset)) }
         item {
-            Card(
-                modifier = Modifier.fillMaxWidth(),
-                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
-            ) {
-                Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                    Text("最高支出分类", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
-                    if (highestExpense == null) {
-                        Text("这个月份还没有支出记录。", color = MaterialTheme.colorScheme.onSurfaceVariant)
-                    } else {
-                        Text(highestExpense.first.name, fontWeight = FontWeight.Black, fontSize = 22.sp)
-                        Text(AmountUtil.format(highestExpense.second), color = MaterialTheme.colorScheme.onSurfaceVariant)
-                    }
-                }
-            }
+            MonthlyCategorySummaryCard(
+                title = "本月支出统计",
+                recordCount = expenseSummary.recordCount,
+                totalLabel = "总支出",
+                totalAmount = expenseSummary.totalExpense,
+                categories = expenseSummary.categories.map {
+                    CategorySummaryItem(it.categoryName, it.amount, it.percent)
+                },
+                expanded = expenseExpanded,
+                onExpandedChange = { expenseExpanded = it }
+            )
+        }
+        item {
+            MonthlyCategorySummaryCard(
+                title = "本月收入统计",
+                recordCount = incomeSummary.recordCount,
+                totalLabel = "总收入",
+                totalAmount = incomeSummary.totalIncome,
+                categories = incomeSummary.categories.map {
+                    CategorySummaryItem(it.categoryName, it.amount, it.percent)
+                },
+                expanded = incomeExpanded,
+                onExpandedChange = { incomeExpanded = it }
+            )
         }
         item { StatCard("今日统计", viewModel.todayStat(data)) }
         item { StatCard("本周统计", viewModel.weekStat(data)) }
@@ -133,3 +148,65 @@ private fun HomeOverviewScreen(
         item { Spacer(Modifier.height(88.dp)) }
     }
 }
+
+@Composable
+private fun MonthlyCategorySummaryCard(
+    title: String,
+    recordCount: Int,
+    totalLabel: String,
+    totalAmount: Long,
+    categories: List<CategorySummaryItem>,
+    expanded: Boolean,
+    onExpandedChange: (Boolean) -> Unit,
+    modifier: Modifier = Modifier
+) {
+    val visibleCategories = if (expanded) categories else categories.take(5)
+
+    Card(
+        modifier = modifier.fillMaxWidth(),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
+    ) {
+        Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                Text(title, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+                Text("共${recordCount}笔记账", color = MaterialTheme.colorScheme.onSurfaceVariant)
+            }
+            Text("$totalLabel ${AmountUtil.format(totalAmount)}", fontWeight = FontWeight.Black, fontSize = 20.sp)
+            if (categories.isEmpty()) {
+                Text("这个月份还没有记录。", color = MaterialTheme.colorScheme.onSurfaceVariant)
+            } else {
+                visibleCategories.forEach { item ->
+                    CategorySummaryRow(item)
+                }
+                if (categories.size > 5) {
+                    OutlinedButton(
+                        onClick = { onExpandedChange(!expanded) },
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Text(if (expanded) "收起" else "展开全部")
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun CategorySummaryRow(item: CategorySummaryItem) {
+    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+        Text(item.categoryName, fontWeight = FontWeight.SemiBold)
+        Text(
+            "${AmountUtil.format(item.amount)} · ${formatPercent(item.percent)}",
+            color = MaterialTheme.colorScheme.onSurfaceVariant
+        )
+    }
+}
+
+private data class CategorySummaryItem(
+    val categoryName: String,
+    val amount: Long,
+    val percent: Double
+)
+
+private fun formatPercent(value: Double): String =
+    "${(value * 100).coerceAtLeast(0.0).let { "%.1f".format(it) }}%"
