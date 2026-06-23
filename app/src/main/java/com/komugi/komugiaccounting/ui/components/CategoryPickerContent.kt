@@ -1,15 +1,17 @@
 package com.komugi.komugiaccounting.ui.components
 
+import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.defaultMinSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
-import androidx.compose.material3.FilterChip
+import androidx.compose.material3.Card
+import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
@@ -17,7 +19,10 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.compose.foundation.lazy.LazyColumn
 import com.komugi.komugiaccounting.data.model.Category
 
 @OptIn(ExperimentalLayoutApi::class)
@@ -30,9 +35,10 @@ fun CategoryPickerContent(
     selectedCategoryIds: Set<String> = emptySet(),
     modifier: Modifier = Modifier
 ) {
-    val categoryById = categories.associateBy { it.id }
+    val visibleCategories = categories.filterNot { it.isGroupPlaceholder() }
+    val categoryById = visibleCategories.associateBy { it.id }
     val recentCategories = recentCategoryIds.mapNotNull { categoryById[it] }.take(10)
-    val grouped = categories
+    val grouped = visibleCategories
         .groupBy { it.groupName.ifBlank { "未分组" } }
         .toSortedMap(compareBy { categoryGroupOrder(it) })
 
@@ -86,14 +92,42 @@ private fun CategoryGroupSection(
 ) {
     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
         Text(title, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
-        FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        FlowRow(horizontalArrangement = Arrangement.spacedBy(10.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
             categories.forEach { category ->
-                FilterChip(
+                CategoryOptionButton(
+                    category = category,
                     selected = category.id in selectedCategoryIds,
-                    onClick = { onSelect(category) },
-                    label = { Text(category.name) }
+                    onClick = { onSelect(category) }
                 )
             }
+        }
+    }
+}
+
+@Composable
+private fun CategoryOptionButton(category: Category, selected: Boolean, onClick: () -> Unit) {
+    Card(
+        modifier = Modifier
+            .defaultMinSize(minWidth = 72.dp)
+            .clickable(onClick = onClick),
+        colors = CardDefaults.cardColors(
+            containerColor = if (selected) MaterialTheme.colorScheme.primaryContainer else panelBackgroundColor()
+        ),
+        border = if (selected) BorderStroke(1.dp, MaterialTheme.colorScheme.primary) else null
+    ) {
+        Column(
+            modifier = Modifier.padding(horizontal = 10.dp, vertical = 8.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.spacedBy(5.dp)
+        ) {
+            CategoryIconBadge(category = category, size = 42.dp)
+            Text(
+                category.name,
+                style = MaterialTheme.typography.labelMedium,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+                textAlign = TextAlign.Center
+            )
         }
     }
 }
@@ -113,3 +147,5 @@ fun categoryGroupOrder(groupName: String): Int = when (groupName) {
     "其他收入" -> 12
     else -> 99
 }
+
+private fun Category.isGroupPlaceholder(): Boolean = name.startsWith("__group__")

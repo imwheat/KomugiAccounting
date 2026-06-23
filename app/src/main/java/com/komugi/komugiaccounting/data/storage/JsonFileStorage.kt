@@ -142,6 +142,7 @@ class JsonFileStorage(private val context: Context) {
         put("type", category.type.name)
         put("iconName", category.iconName)
         put("color", category.color)
+        put("iconImageUri", category.iconImageUri)
         put("sortOrder", category.sortOrder)
         put("groupName", category.groupName)
         put("enabled", category.enabled)
@@ -242,6 +243,7 @@ class JsonFileStorage(private val context: Context) {
         type = RecordType.valueOf(json.getString("type")),
         iconName = json.optString("iconName", ""),
         color = json.optString("color", "#BDBDBD"),
+        iconImageUri = json.optString("iconImageUri", ""),
         sortOrder = json.optInt("sortOrder", 0),
         groupName = json.optString("groupName", legacyGroupName(json.optString("name", ""))),
         enabled = json.optBoolean("enabled", true),

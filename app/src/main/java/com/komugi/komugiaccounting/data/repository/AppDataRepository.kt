@@ -166,7 +166,7 @@ class AppDataRepository private constructor(context: Context) {
                     id = UUID.randomUUID().toString(),
                     name = cleanName,
                     type = type,
-                    iconName = "MoreHoriz",
+                    iconName = cleanName.firstIconText(),
                     color = if (type == RecordType.EXPENSE) "#FF7043" else "#66BB6A",
                     sortOrder = nextOrder,
                     groupName = cleanGroupName,
@@ -189,7 +189,7 @@ class AppDataRepository private constructor(context: Context) {
                     id = UUID.randomUUID().toString(),
                     name = "__group__$cleanName",
                     type = type,
-                    iconName = "Folder",
+                    iconName = cleanName.firstIconText(),
                     color = if (type == RecordType.EXPENSE) "#FF7043" else "#66BB6A",
                     sortOrder = nextOrder,
                     groupName = cleanName,
@@ -208,6 +208,54 @@ class AppDataRepository private constructor(context: Context) {
         if (cleanName.isEmpty()) return "分类名称不能为空"
         if (current.categories.any { it.id != categoryId && it.type == category.type && it.groupName == category.groupName && it.name == cleanName }) return "分类已经存在"
         update { data -> data.copy(categories = data.categories.map { if (it.id == categoryId) it.copy(name = cleanName) else it }) }
+        return null
+    }
+
+    fun updateCategoryStyle(categoryId: String, iconName: String, color: String, iconImageUri: String): String? {
+        val cleanColor = color.trim()
+        val current = _data.value
+        if (current.categories.none { it.id == categoryId }) return "分类不存在"
+        if (!cleanColor.matches(Regex("^#[0-9a-fA-F]{6}([0-9a-fA-F]{2})?$"))) return "颜色格式应为 #RRGGBB"
+        update { data ->
+            data.copy(
+                categories = data.categories.map { category ->
+                    if (category.id == categoryId) {
+                        category.copy(
+                            iconName = iconName.trim().ifBlank { category.displayNameForIcon().firstIconText() },
+                            color = cleanColor,
+                            iconImageUri = iconImageUri.trim()
+                        )
+                    } else {
+                        category
+                    }
+                }
+            )
+        }
+        return null
+    }
+
+    fun updateCategoryGroupStyle(type: RecordType, groupName: String, iconName: String, color: String, iconImageUri: String): String? {
+        val cleanGroupName = groupName.trim()
+        val cleanColor = color.trim()
+        if (cleanGroupName.isEmpty()) return "分组不存在"
+        if (!cleanColor.matches(Regex("^#[0-9a-fA-F]{6}([0-9a-fA-F]{2})?$"))) return "颜色格式应为 #RRGGBB"
+        val current = _data.value
+        if (current.categories.none { it.type == type && it.groupName == cleanGroupName }) return "分组不存在"
+        update { data ->
+            data.copy(
+                categories = data.categories.map { category ->
+                    if (category.type == type && category.groupName == cleanGroupName) {
+                        category.copy(
+                            iconName = iconName.trim().ifBlank { cleanGroupName.firstIconText() },
+                            color = cleanColor,
+                            iconImageUri = iconImageUri.trim()
+                        )
+                    } else {
+                        category
+                    }
+                }
+            )
+        }
         return null
     }
 
@@ -550,6 +598,12 @@ class AppDataRepository private constructor(context: Context) {
         val amountText = text.substring(startIndex, endIndex).trim().replace(",", "")
         return AmountUtil.parseToCents(amountText)
     }
+
+    private fun String.firstIconText(): String =
+        trim().firstOrNull()?.toString().orEmpty()
+
+    private fun Category.displayNameForIcon(): String =
+        if (name.startsWith("__group__")) groupName else name
 
     private fun AppData.exportRecords(startTime: Long?, endTime: Long?): List<TransactionRecord> =
         records.asSequence()

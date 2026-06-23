@@ -9,5 +9,6 @@ data class Category(
     val sortOrder: Int,
     val groupName: String = "",
     val enabled: Boolean = true,
-    val isSystem: Boolean = false
+    val isSystem: Boolean = false,
+    val iconImageUri: String = ""
 )

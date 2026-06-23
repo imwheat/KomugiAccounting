@@ -3,6 +3,8 @@
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectHorizontalDragGestures
 import androidx.activity.compose.BackHandler
+import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -10,8 +12,10 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.FilterChip
@@ -39,7 +43,9 @@ import com.komugi.komugiaccounting.ui.components.StatCard
 import com.komugi.komugiaccounting.data.repository.AppDataRepository
 import com.komugi.komugiaccounting.ui.calendar.CalendarScreen
 import com.komugi.komugiaccounting.ui.chart.ChartScreen
+import com.komugi.komugiaccounting.ui.components.CategoryIconBadge
 import com.komugi.komugiaccounting.ui.components.panelBackgroundColor
+import com.komugi.komugiaccounting.ui.components.parseCategoryColor
 import com.komugi.komugiaccounting.ui.detail.DetailScreen
 import com.komugi.komugiaccounting.ui.detail.DetailFilterRequest
 import com.komugi.komugiaccounting.ui.detail.DetailViewModel
@@ -181,15 +187,15 @@ private fun HomeOverviewScreen(
                 title = "本月支出统计",
                 recordCount = expenseSummary.recordCount,
                 totalLabel = "总支出",
-                totalAmount = expenseSummary.totalExpense,
+                totalAmount = expenseSummary.totalAmount,
                 totalAmountColor = Color(0xFFB3542E),
-                categories = expenseSummary.categories.map {
-                    CategorySummaryItem(it.categoryId, it.categoryName, it.amount, it.percent)
+                groups = expenseSummary.groups.map {
+                    GroupSummaryItem(it.groupName, it.iconName, it.color, it.iconImageUri, it.categoryIds, it.amount, it.percent)
                 },
                 expanded = expenseExpanded,
                 onExpandedChange = { expenseExpanded = it },
-                onCategoryClick = { categoryId ->
-                    onOpenDetail(monthCategoryFilter(monthOffset, RecordType.EXPENSE, categoryId))
+                onGroupClick = { categoryIds ->
+                    onOpenDetail(monthGroupFilter(monthOffset, RecordType.EXPENSE, categoryIds))
                 }
             )
         }
@@ -198,15 +204,15 @@ private fun HomeOverviewScreen(
                 title = "本月收入统计",
                 recordCount = incomeSummary.recordCount,
                 totalLabel = "总收入",
-                totalAmount = incomeSummary.totalIncome,
+                totalAmount = incomeSummary.totalAmount,
                 totalAmountColor = Color(0xFF1F7A4D),
-                categories = incomeSummary.categories.map {
-                    CategorySummaryItem(it.categoryId, it.categoryName, it.amount, it.percent)
+                groups = incomeSummary.groups.map {
+                    GroupSummaryItem(it.groupName, it.iconName, it.color, it.iconImageUri, it.categoryIds, it.amount, it.percent)
                 },
                 expanded = incomeExpanded,
                 onExpandedChange = { incomeExpanded = it },
-                onCategoryClick = { categoryId ->
-                    onOpenDetail(monthCategoryFilter(monthOffset, RecordType.INCOME, categoryId))
+                onGroupClick = { categoryIds ->
+                    onOpenDetail(monthGroupFilter(monthOffset, RecordType.INCOME, categoryIds))
                 }
             )
         }
@@ -261,13 +267,13 @@ private fun MonthlyCategorySummaryCard(
     totalLabel: String,
     totalAmount: Long,
     totalAmountColor: Color,
-    categories: List<CategorySummaryItem>,
+    groups: List<GroupSummaryItem>,
     expanded: Boolean,
     onExpandedChange: (Boolean) -> Unit,
-    onCategoryClick: (String) -> Unit,
+    onGroupClick: (Set<String>) -> Unit,
     modifier: Modifier = Modifier
 ) {
-    val visibleCategories = if (expanded) categories else categories.take(5)
+    val visibleGroups = if (expanded) groups else groups.take(5)
 
     Card(
         modifier = modifier.fillMaxWidth(),
@@ -283,13 +289,13 @@ private fun MonthlyCategorySummaryCard(
                 Text(totalLabel, fontWeight = FontWeight.Black, fontSize = 20.sp)
                 Text(AmountUtil.format(totalAmount), color = totalAmountColor, fontWeight = FontWeight.Black, fontSize = 20.sp)
             }
-            if (categories.isEmpty()) {
+            if (groups.isEmpty()) {
                 Text("这个月份还没有记录。", color = MaterialTheme.colorScheme.onSurfaceVariant)
             } else {
-                visibleCategories.forEach { item ->
-                    CategorySummaryRow(item = item, onClick = { onCategoryClick(item.categoryId) })
+                visibleGroups.forEach { item ->
+                    GroupSummaryRow(item = item, onClick = { onGroupClick(item.categoryIds) })
                 }
-                if (categories.size > 5) {
+                if (groups.size > 5) {
                     OutlinedButton(
                         onClick = { onExpandedChange(!expanded) },
                         modifier = Modifier.fillMaxWidth()
@@ -319,25 +325,58 @@ private fun SectionHeader(title: String) {
 }
 
 @Composable
-private fun CategorySummaryRow(item: CategorySummaryItem, onClick: () -> Unit) {
+private fun GroupSummaryRow(item: GroupSummaryItem, onClick: () -> Unit) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
             .clickable(onClick = onClick)
-            .padding(vertical = 4.dp),
-        horizontalArrangement = Arrangement.SpaceBetween
+            .padding(vertical = 6.dp),
+        horizontalArrangement = Arrangement.spacedBy(12.dp)
     ) {
-        Text(item.categoryName, fontWeight = FontWeight.SemiBold)
-        Text(
-            "${AmountUtil.format(item.amount)} · ${formatPercent(item.percent)}",
-            color = MaterialTheme.colorScheme.onSurfaceVariant
+        Column(horizontalAlignment = androidx.compose.ui.Alignment.CenterHorizontally, modifier = Modifier.size(width = 58.dp, height = 68.dp)) {
+            CategoryIconBadge(
+                name = item.groupName,
+                iconName = item.iconName,
+                color = item.color,
+                iconImageUri = item.iconImageUri,
+                size = 46.dp
+            )
+            Text(item.groupName, style = MaterialTheme.typography.labelSmall, maxLines = 1)
+        }
+        Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                Text(AmountUtil.format(item.amount), fontWeight = FontWeight.Bold)
+                Text(formatPercent(item.percent), color = MaterialTheme.colorScheme.onSurfaceVariant)
+            }
+            GroupProgressBar(percent = item.percent, color = parseCategoryColor(item.color))
+        }
+    }
+}
+
+@Composable
+private fun GroupProgressBar(percent: Double, color: Color) {
+    val fraction = percent.toFloat().coerceIn(0f, 1f)
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .height(9.dp)
+            .background(MaterialTheme.colorScheme.surfaceVariant, RoundedCornerShape(99.dp))
+    ) {
+        Box(
+            modifier = Modifier
+                .fillMaxWidth(fraction)
+                .height(9.dp)
+                .background(color, RoundedCornerShape(99.dp))
         )
     }
 }
 
-private data class CategorySummaryItem(
-    val categoryId: String,
-    val categoryName: String,
+private data class GroupSummaryItem(
+    val groupName: String,
+    val iconName: String,
+    val color: String,
+    val iconImageUri: String,
+    val categoryIds: Set<String>,
     val amount: Long,
     val percent: Double
 )
@@ -347,12 +386,12 @@ private fun formatPercent(value: Double): String =
 
 private fun todoBadge(count: Int): String = if (count >= 100) "99+" else count.toString()
 
-private fun monthCategoryFilter(monthOffset: Int, type: RecordType, categoryId: String): DetailFilterRequest {
+private fun monthGroupFilter(monthOffset: Int, type: RecordType, categoryIds: Set<String>): DetailFilterRequest {
     val start = DateTimeUtil.monthOffsetStart(monthOffset)
     val endInclusive = DateTimeUtil.endExclusiveFromStart(start, java.util.Calendar.MONTH, 1) - 1
     return DetailFilterRequest(
         type = type,
-        categoryId = categoryId,
+        categoryIds = categoryIds,
         startDate = DateTimeUtil.formatDate(start),
         endDate = DateTimeUtil.formatDate(endInclusive)
     )

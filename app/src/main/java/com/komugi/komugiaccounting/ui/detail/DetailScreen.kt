@@ -57,6 +57,7 @@ import java.util.Calendar
 data class DetailFilterRequest(
     val type: RecordType?,
     val categoryId: String? = null,
+    val categoryIds: Set<String> = emptySet(),
     val startDate: String,
     val endDate: String
 )
@@ -123,7 +124,7 @@ fun DetailScreen(
     LaunchedEffect(filterRequest) {
         filterRequest?.let { request ->
             selectedType = request.type
-            selectedCategoryIds = request.categoryId?.let { setOf(it) } ?: emptySet()
+            selectedCategoryIds = request.categoryIds.ifEmpty { request.categoryId?.let { setOf(it) } ?: emptySet() }
             selectedMemberIds = emptySet()
             keyword = ""
             remarkKeyword = ""
