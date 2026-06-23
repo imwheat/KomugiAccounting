@@ -43,6 +43,7 @@ class HomeViewModel(private val repository: AppDataRepository) {
                 if (amount <= 0L) return@mapNotNull null
                 val categoryName = categoryById[categoryId]?.name ?: "未分类"
                 ExpenseCategoryStat(
+                    categoryId = categoryId,
                     categoryName = categoryName,
                     amount = amount,
                     percent = if (totalExpense > 0L) amount.toDouble() / totalExpense.toDouble() else 0.0
@@ -71,6 +72,7 @@ class HomeViewModel(private val repository: AppDataRepository) {
                 if (amount <= 0L) return@mapNotNull null
                 val categoryName = categoryById[categoryId]?.name ?: "未分类"
                 IncomeCategoryStat(
+                    categoryId = categoryId,
                     categoryName = categoryName,
                     amount = amount,
                     percent = if (totalIncome > 0L) amount.toDouble() / totalIncome.toDouble() else 0.0
@@ -110,6 +112,7 @@ data class ExpenseSummary(
 )
 
 data class ExpenseCategoryStat(
+    val categoryId: String,
     val categoryName: String,
     val amount: Long,
     val percent: Double
@@ -122,6 +125,7 @@ data class IncomeSummary(
 )
 
 data class IncomeCategoryStat(
+    val categoryId: String,
     val categoryName: String,
     val amount: Long,
     val percent: Double

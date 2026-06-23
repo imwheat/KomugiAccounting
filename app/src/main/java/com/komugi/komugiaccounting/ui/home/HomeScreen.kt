@@ -1,5 +1,6 @@
 ﻿package com.komugi.komugiaccounting.ui.home
 
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -20,20 +21,24 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.komugi.komugiaccounting.data.model.RecordType
 import com.komugi.komugiaccounting.ui.components.RecordItem
 import com.komugi.komugiaccounting.ui.components.StatCard
 import com.komugi.komugiaccounting.data.repository.AppDataRepository
 import com.komugi.komugiaccounting.ui.calendar.CalendarScreen
 import com.komugi.komugiaccounting.ui.chart.ChartScreen
 import com.komugi.komugiaccounting.ui.detail.DetailScreen
+import com.komugi.komugiaccounting.ui.detail.DetailFilterRequest
 import com.komugi.komugiaccounting.ui.detail.DetailViewModel
 import com.komugi.komugiaccounting.util.AmountUtil
+import com.komugi.komugiaccounting.util.DateTimeUtil
 
 @Composable
 fun HomeScreen(
@@ -44,6 +49,7 @@ fun HomeScreen(
     modifier: Modifier = Modifier
 ) {
     var page by rememberSaveable { mutableIntStateOf(0) }
+    var detailFilterRequest by remember { mutableStateOf<DetailFilterRequest?>(null) }
 
     Column(modifier = modifier) {
         Row(
@@ -53,7 +59,10 @@ fun HomeScreen(
             listOf("首页", "明细", "图表", "日历").forEachIndexed { index, title ->
                 FilterChip(
                     selected = page == index,
-                    onClick = { page = index },
+                    onClick = {
+                        if (index == 1) detailFilterRequest = null
+                        page = index
+                    },
                     label = { Text(title) }
                 )
             }
@@ -61,9 +70,17 @@ fun HomeScreen(
         when (page) {
             0 -> HomeOverviewScreen(
                 viewModel = homeViewModel,
-                onEditRecord = onEditRecord
+                onEditRecord = onEditRecord,
+                onOpenCategoryDetail = { request ->
+                    detailFilterRequest = request
+                    page = 1
+                }
             )
-            1 -> DetailScreen(viewModel = detailViewModel, onEditRecord = onEditRecord)
+            1 -> DetailScreen(
+                viewModel = detailViewModel,
+                onEditRecord = onEditRecord,
+                filterRequest = detailFilterRequest
+            )
             2 -> ChartScreen(repository = repository)
             3 -> CalendarScreen(repository = repository)
         }
@@ -74,6 +91,7 @@ fun HomeScreen(
 private fun HomeOverviewScreen(
     viewModel: HomeViewModel,
     onEditRecord: (String) -> Unit,
+    onOpenCategoryDetail: (DetailFilterRequest) -> Unit,
     modifier: Modifier = Modifier
 ) {
     val data by viewModel.data.collectAsState()
@@ -110,10 +128,13 @@ private fun HomeOverviewScreen(
                 totalLabel = "总支出",
                 totalAmount = expenseSummary.totalExpense,
                 categories = expenseSummary.categories.map {
-                    CategorySummaryItem(it.categoryName, it.amount, it.percent)
+                    CategorySummaryItem(it.categoryId, it.categoryName, it.amount, it.percent)
                 },
                 expanded = expenseExpanded,
-                onExpandedChange = { expenseExpanded = it }
+                onExpandedChange = { expenseExpanded = it },
+                onCategoryClick = { categoryId ->
+                    onOpenCategoryDetail(monthCategoryFilter(monthOffset, RecordType.EXPENSE, categoryId))
+                }
             )
         }
         item {
@@ -123,10 +144,13 @@ private fun HomeOverviewScreen(
                 totalLabel = "总收入",
                 totalAmount = incomeSummary.totalIncome,
                 categories = incomeSummary.categories.map {
-                    CategorySummaryItem(it.categoryName, it.amount, it.percent)
+                    CategorySummaryItem(it.categoryId, it.categoryName, it.amount, it.percent)
                 },
                 expanded = incomeExpanded,
-                onExpandedChange = { incomeExpanded = it }
+                onExpandedChange = { incomeExpanded = it },
+                onCategoryClick = { categoryId ->
+                    onOpenCategoryDetail(monthCategoryFilter(monthOffset, RecordType.INCOME, categoryId))
+                }
             )
         }
         item { StatCard("今日统计", viewModel.todayStat(data)) }
@@ -158,6 +182,7 @@ private fun MonthlyCategorySummaryCard(
     categories: List<CategorySummaryItem>,
     expanded: Boolean,
     onExpandedChange: (Boolean) -> Unit,
+    onCategoryClick: (String) -> Unit,
     modifier: Modifier = Modifier
 ) {
     val visibleCategories = if (expanded) categories else categories.take(5)
@@ -176,7 +201,7 @@ private fun MonthlyCategorySummaryCard(
                 Text("这个月份还没有记录。", color = MaterialTheme.colorScheme.onSurfaceVariant)
             } else {
                 visibleCategories.forEach { item ->
-                    CategorySummaryRow(item)
+                    CategorySummaryRow(item = item, onClick = { onCategoryClick(item.categoryId) })
                 }
                 if (categories.size > 5) {
                     OutlinedButton(
@@ -192,8 +217,14 @@ private fun MonthlyCategorySummaryCard(
 }
 
 @Composable
-private fun CategorySummaryRow(item: CategorySummaryItem) {
-    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+private fun CategorySummaryRow(item: CategorySummaryItem, onClick: () -> Unit) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable(onClick = onClick)
+            .padding(vertical = 4.dp),
+        horizontalArrangement = Arrangement.SpaceBetween
+    ) {
         Text(item.categoryName, fontWeight = FontWeight.SemiBold)
         Text(
             "${AmountUtil.format(item.amount)} · ${formatPercent(item.percent)}",
@@ -203,6 +234,7 @@ private fun CategorySummaryRow(item: CategorySummaryItem) {
 }
 
 private data class CategorySummaryItem(
+    val categoryId: String,
     val categoryName: String,
     val amount: Long,
     val percent: Double
@@ -210,3 +242,14 @@ private data class CategorySummaryItem(
 
 private fun formatPercent(value: Double): String =
     "${(value * 100).coerceAtLeast(0.0).let { "%.1f".format(it) }}%"
+
+private fun monthCategoryFilter(monthOffset: Int, type: RecordType, categoryId: String): DetailFilterRequest {
+    val start = DateTimeUtil.monthOffsetStart(monthOffset)
+    val endInclusive = DateTimeUtil.endExclusiveFromStart(start, java.util.Calendar.MONTH, 1) - 1
+    return DetailFilterRequest(
+        type = type,
+        categoryId = categoryId,
+        startDate = DateTimeUtil.formatDate(start),
+        endDate = DateTimeUtil.formatDate(endInclusive)
+    )
+}

@@ -20,6 +20,7 @@ import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -43,11 +44,19 @@ import com.komugi.komugiaccounting.util.AmountUtil
 import com.komugi.komugiaccounting.util.DateTimeUtil
 import java.util.Calendar
 
+data class DetailFilterRequest(
+    val type: RecordType,
+    val categoryId: String,
+    val startDate: String,
+    val endDate: String
+)
+
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
 fun DetailScreen(
     viewModel: DetailViewModel,
     onEditRecord: (String) -> Unit,
+    filterRequest: DetailFilterRequest? = null,
     modifier: Modifier = Modifier
 ) {
     val data by viewModel.data.collectAsState()
@@ -62,6 +71,20 @@ fun DetailScreen(
     var startDate by rememberSaveable { mutableStateOf("") }
     var endDate by rememberSaveable { mutableStateOf("") }
     var sortMode by rememberSaveable { mutableStateOf(SortMode.TIME_DESC) }
+
+    LaunchedEffect(filterRequest) {
+        filterRequest?.let { request ->
+            selectedType = request.type
+            selectedCategoryIds = setOf(request.categoryId)
+            selectedMemberIds = emptySet()
+            keyword = ""
+            minAmount = ""
+            maxAmount = ""
+            startDate = request.startDate
+            endDate = request.endDate
+            sortMode = SortMode.TIME_DESC
+        }
+    }
 
     val minAmountCents = minAmount.takeIf { it.isNotBlank() }?.let { AmountUtil.parseToCents(it) }
     val maxAmountCents = maxAmount.takeIf { it.isNotBlank() }?.let { AmountUtil.parseToCents(it) }
