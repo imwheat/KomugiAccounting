@@ -6,9 +6,7 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -44,19 +42,21 @@ import com.komugi.komugiaccounting.data.model.AutomationFrequency
 import com.komugi.komugiaccounting.data.model.AutomationRule
 import com.komugi.komugiaccounting.data.model.Category
 import com.komugi.komugiaccounting.data.model.RecordType
+import com.komugi.komugiaccounting.data.model.Template
 import com.komugi.komugiaccounting.data.repository.AppDataRepository
 import com.komugi.komugiaccounting.ui.components.CategoryPickerContent
 import com.komugi.komugiaccounting.ui.components.categoryDisplayPath
 import com.komugi.komugiaccounting.util.AmountUtil
 import com.komugi.komugiaccounting.util.DateTimeUtil
+import java.util.Calendar
 import java.util.UUID
 
 private sealed interface AutomationPage {
     data object Main : AutomationPage
     data object TodoList : AutomationPage
     data object AutoBookRules : AutomationPage
-    data class AutoBookEdit(val ruleId: String?) : AutomationPage
     data object AutoBookTest : AutomationPage
+    data class AutoBookEdit(val ruleId: String?) : AutomationPage
     data class RuleList(val type: RecordType) : AutomationPage
     data class RuleEdit(val type: RecordType, val ruleId: String?) : AutomationPage
     data class CategoryPicker(val type: RecordType, val ruleId: String?) : AutomationPage
@@ -96,11 +96,11 @@ fun AutomationScreen(
                 }
             }
             AutomationPage.AutoBookRules -> AutomationPage.Main
-            is AutomationPage.AutoBookEdit -> AutomationPage.AutoBookRules
             AutomationPage.AutoBookTest -> AutomationPage.AutoBookRules
-            is AutomationPage.CategoryPicker -> AutomationPage.RuleEdit(current.type, current.ruleId)
-            is AutomationPage.RuleEdit -> AutomationPage.RuleList(current.type)
+            is AutomationPage.AutoBookEdit -> AutomationPage.AutoBookRules
             is AutomationPage.RuleList -> AutomationPage.Main
+            is AutomationPage.RuleEdit -> AutomationPage.RuleList(current.type)
+            is AutomationPage.CategoryPicker -> AutomationPage.RuleEdit(current.type, current.ruleId)
         }
     }
 
@@ -127,8 +127,17 @@ fun AutomationScreen(
             onEdit = { page = AutomationPage.AutoBookEdit(it) },
             modifier = modifier
         )
-        is AutomationPage.AutoBookEdit -> AutoBookRuleEditScreen(repository, current.ruleId, onBack = { page = AutomationPage.AutoBookRules }, modifier)
-        AutomationPage.AutoBookTest -> AutoBookTestScreen(repository, onBack = { page = AutomationPage.AutoBookRules }, modifier)
+        AutomationPage.AutoBookTest -> AutoBookTestScreen(
+            repository = repository,
+            onBack = { page = AutomationPage.AutoBookRules },
+            modifier = modifier
+        )
+        is AutomationPage.AutoBookEdit -> AutoBookRuleEditScreen(
+            repository = repository,
+            ruleId = current.ruleId,
+            onBack = { page = AutomationPage.AutoBookRules },
+            modifier = modifier
+        )
         is AutomationPage.RuleList -> AutomationRuleListScreen(
             repository = repository,
             type = current.type,
@@ -194,7 +203,12 @@ private fun AutomationMainScreen(
 
 @Composable
 private fun AutomationOptionCard(title: String, enabledCount: Int, totalCount: Int, onClick: () -> Unit) {
-    Card(modifier = Modifier.fillMaxWidth().clickable(onClick = onClick), colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)) {
+    Card(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable(onClick = onClick),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
+    ) {
         Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
             Text(title, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
             Text("启用 ${enabledCount} 个，共有 ${totalCount} 个", color = MaterialTheme.colorScheme.onSurfaceVariant)
@@ -214,18 +228,15 @@ private fun AutoBookRuleListScreen(
     val data by repository.data.collectAsState()
     LazyColumn(modifier = modifier.padding(18.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
         item {
-            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                OutlinedButton(modifier = Modifier.weight(1f), onClick = onTest) { Text("测试") }
-                Button(modifier = Modifier.weight(1f), onClick = onCreate) { Text("新建") }
-            }
-        }
-        item {
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
                 Row(horizontalArrangement = Arrangement.spacedBy(10.dp), verticalAlignment = Alignment.CenterVertically) {
                     OutlinedButton(onClick = onBack) { Text("<") }
                     Text("自动记账", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Black)
                 }
-                Button(onClick = onCreate) { Text("新建") }
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    OutlinedButton(onClick = onTest) { Text("测试") }
+                    Button(onClick = onCreate) { Text("新建") }
+                }
             }
         }
         if (data.autoBookRules.isEmpty()) {
@@ -233,7 +244,10 @@ private fun AutoBookRuleListScreen(
         } else {
             items(data.autoBookRules, key = { it.id }) { rule ->
                 Card(
-                    modifier = Modifier.fillMaxWidth().alpha(if (rule.enabled) 1f else 0.48f).clickable { onEdit(rule.id) },
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .alpha(if (rule.enabled) 1f else 0.48f)
+                        .clickable { onEdit(rule.id) },
                     colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
                 ) {
                     Row(Modifier.padding(14.dp), horizontalArrangement = Arrangement.spacedBy(12.dp), verticalAlignment = Alignment.CenterVertically) {
@@ -322,6 +336,7 @@ private fun AutoBookRuleEditScreen(repository: AppDataRepository, ruleId: String
 
 @Composable
 private fun AutoBookTestScreen(repository: AppDataRepository, onBack: () -> Unit, modifier: Modifier = Modifier) {
+    val data by repository.data.collectAsState()
     var titleKeyword by rememberSaveable { mutableStateOf("") }
     var startDate by rememberSaveable { mutableStateOf(DateTimeUtil.formatDate(DateTimeUtil.startOfDay())) }
     var endDate by rememberSaveable { mutableStateOf(DateTimeUtil.formatDate(DateTimeUtil.startOfDay())) }
@@ -338,27 +353,9 @@ private fun AutoBookTestScreen(repository: AppDataRepository, onBack: () -> Unit
         item {
             Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)) {
                 Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                    OutlinedTextField(
-                        value = titleKeyword,
-                        onValueChange = { titleKeyword = it },
-                        label = { Text("标题关键词") },
-                        singleLine = true,
-                        modifier = Modifier.fillMaxWidth()
-                    )
-                    OutlinedTextField(
-                        value = startDate,
-                        onValueChange = { startDate = it },
-                        label = { Text("开始日期 yyyy-MM-dd") },
-                        singleLine = true,
-                        modifier = Modifier.fillMaxWidth()
-                    )
-                    OutlinedTextField(
-                        value = endDate,
-                        onValueChange = { endDate = it },
-                        label = { Text("结束日期 yyyy-MM-dd") },
-                        singleLine = true,
-                        modifier = Modifier.fillMaxWidth()
-                    )
+                    OutlinedTextField(titleKeyword, { titleKeyword = it }, label = { Text("标题关键词") }, singleLine = true, modifier = Modifier.fillMaxWidth())
+                    OutlinedTextField(startDate, { startDate = it }, label = { Text("开始日期 yyyy-MM-dd") }, singleLine = true, modifier = Modifier.fillMaxWidth())
+                    OutlinedTextField(endDate, { endDate = it }, label = { Text("结束日期 yyyy-MM-dd") }, singleLine = true, modifier = Modifier.fillMaxWidth())
                     Button(
                         modifier = Modifier.fillMaxWidth(),
                         onClick = {
@@ -367,12 +364,13 @@ private fun AutoBookTestScreen(repository: AppDataRepository, onBack: () -> Unit
                             if (start == null || end == null) {
                                 message = "日期格式不正确"
                             } else {
-                                val endExclusive = DateTimeUtil.endExclusiveFromStart(end, java.util.Calendar.DAY_OF_YEAR, 1)
+                                val endExclusive = DateTimeUtil.endExclusiveFromStart(end, Calendar.DAY_OF_YEAR, 1)
                                 results = repository.queryAutoBookNotificationLogs(titleKeyword, start, endExclusive)
                                 message = "读取到 ${results.size} 条消息"
                             }
                         }
                     ) { Text("读取消息") }
+                    Text("标题为空会读取全部已保存通知。当前已保存 ${data.autoBookNotificationLogs.size} 条。", color = MaterialTheme.colorScheme.onSurfaceVariant)
                     message?.let { Text(it, color = MaterialTheme.colorScheme.onSurfaceVariant) }
                 }
             }
@@ -380,9 +378,7 @@ private fun AutoBookTestScreen(repository: AppDataRepository, onBack: () -> Unit
         if (results.isEmpty()) {
             item { Text("没有读取到消息记录。", color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(12.dp)) }
         } else {
-            items(results, key = { it.id }) { log ->
-                AutoBookNotificationLogCard(log)
-            }
+            items(results, key = { it.id }) { log -> AutoBookNotificationLogCard(log) }
         }
         item {
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -443,7 +439,7 @@ private fun AutoBookTodoListScreen(repository: AppDataRepository, onBack: () -> 
 }
 
 @Composable
-private fun AutoBookTodoCard(todo: AutoBookTodo, templates: List<com.komugi.komugiaccounting.data.model.Template>, repository: AppDataRepository) {
+private fun AutoBookTodoCard(todo: AutoBookTodo, templates: List<Template>, repository: AppDataRepository) {
     val color = if (todo.type == RecordType.INCOME) Color(0xFF1F7A4D) else Color(0xFFB3542E)
     var showTemplates by rememberSaveable(todo.id) { mutableStateOf(false) }
     val matchedTemplates = templates.filter { it.type == todo.type && it.amount == todo.amount }
@@ -502,16 +498,26 @@ private fun AutomationRuleListScreen(
             }
         }
         items(rules, key = { it.id }) { rule ->
-            AutomationRuleCard(rule, categories[rule.categoryId], members[rule.memberId]?.name ?: "未知成员", { onEdit(rule.id) }) {
-                repository.setAutomationRuleEnabled(rule.id, it)
-            }
+            AutomationRuleCard(
+                rule = rule,
+                category = categories[rule.categoryId],
+                memberName = members[rule.memberId]?.name ?: "未知成员",
+                onClick = { onEdit(rule.id) },
+                onEnabledChange = { repository.setAutomationRuleEnabled(rule.id, it) }
+            )
         }
     }
 }
 
 @Composable
 private fun AutomationRuleCard(rule: AutomationRule, category: Category?, memberName: String, onClick: () -> Unit, onEnabledChange: (Boolean) -> Unit) {
-    Card(modifier = Modifier.fillMaxWidth().alpha(if (rule.enabled) 1f else 0.48f).clickable(onClick = onClick), colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)) {
+    Card(
+        modifier = Modifier
+            .fillMaxWidth()
+            .alpha(if (rule.enabled) 1f else 0.48f)
+            .clickable(onClick = onClick),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
+    ) {
         Row(Modifier.padding(14.dp), horizontalArrangement = Arrangement.spacedBy(12.dp), verticalAlignment = Alignment.CenterVertically) {
             Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(6.dp)) {
                 Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
@@ -550,12 +556,18 @@ private fun AutomationRuleEditScreen(
     var remark by rememberSaveable(ruleId) { mutableStateOf(editingRule?.remark.orEmpty()) }
     var enabled by rememberSaveable(ruleId) { mutableStateOf(editingRule?.enabled ?: true) }
     var error by rememberSaveable(ruleId) { mutableStateOf<String?>(null) }
+
     LaunchedEffect(overrideCategoryId) { overrideCategoryId?.let { categoryId = it; onCategoryConsumed() } }
     LaunchedEffect(typeCategories, categoryId) { if (typeCategories.none { it.id == categoryId }) categoryId = typeCategories.firstOrNull()?.id.orEmpty() }
     LaunchedEffect(enabledMembers, memberId) { if (enabledMembers.none { it.id == memberId }) memberId = enabledMembers.firstOrNull()?.id.orEmpty() }
 
     LazyColumn(modifier = modifier.padding(18.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-        item { Row(horizontalArrangement = Arrangement.spacedBy(10.dp), verticalAlignment = Alignment.CenterVertically) { OutlinedButton(onClick = onBack) { Text("<") }; Text(if (editingRule == null) "新建订阅" else "编辑订阅", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Black) } }
+        item {
+            Row(horizontalArrangement = Arrangement.spacedBy(10.dp), verticalAlignment = Alignment.CenterVertically) {
+                OutlinedButton(onClick = onBack) { Text("<") }
+                Text(if (editingRule == null) "新建订阅" else "编辑订阅", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Black)
+            }
+        }
         item {
             Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)) {
                 Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
@@ -565,20 +577,54 @@ private fun AutomationRuleEditScreen(
                         FilterChip(frequency == AutomationFrequency.MONTHLY, { frequency = AutomationFrequency.MONTHLY }, label = { Text("每月") })
                         FilterChip(frequency == AutomationFrequency.YEARLY, { frequency = AutomationFrequency.YEARLY }, label = { Text("每年") })
                     }
-                    if (frequency == AutomationFrequency.YEARLY) OutlinedTextField(monthText, { monthText = it }, label = { Text("月份") }, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number), modifier = Modifier.fillMaxWidth())
-                    if (frequency != AutomationFrequency.DAILY) OutlinedTextField(dayText, { dayText = it }, label = { Text("日期") }, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number), modifier = Modifier.fillMaxWidth())
+                    if (frequency == AutomationFrequency.YEARLY) {
+                        OutlinedTextField(monthText, { monthText = it }, label = { Text("月份") }, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number), modifier = Modifier.fillMaxWidth())
+                    }
+                    if (frequency != AutomationFrequency.DAILY) {
+                        OutlinedTextField(dayText, { dayText = it }, label = { Text("日期") }, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number), modifier = Modifier.fillMaxWidth())
+                    }
                     OutlinedTextField(amount, { amount = it }, label = { Text("金额") }, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal), modifier = Modifier.fillMaxWidth())
-                    OutlinedButton(modifier = Modifier.fillMaxWidth(), onClick = onOpenCategoryPicker) { Text(typeCategories.firstOrNull { it.id == categoryId }?.let(::categoryDisplayPath) ?: "请选择分类") }
-                    FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) { enabledMembers.forEach { FilterChip(memberId == it.id, { memberId = it.id }, label = { Text(it.name) }) } }
+                    OutlinedButton(modifier = Modifier.fillMaxWidth(), onClick = onOpenCategoryPicker) {
+                        Text(typeCategories.firstOrNull { it.id == categoryId }?.let(::categoryDisplayPath) ?: "请选择分类")
+                    }
+                    FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                        enabledMembers.forEach { member ->
+                            FilterChip(memberId == member.id, { memberId = member.id }, label = { Text(member.name) })
+                        }
+                    }
                     OutlinedTextField(remark, { remark = it }, label = { Text("备注") }, modifier = Modifier.fillMaxWidth())
-                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) { Text("启用"); Switch(enabled, { enabled = it }) }
+                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+                        Text("启用")
+                        Switch(enabled, { enabled = it })
+                    }
                     error?.let { Text(it, color = MaterialTheme.colorScheme.error) }
-                    Button(modifier = Modifier.fillMaxWidth(), onClick = {
-                        val cents = AmountUtil.parseToCents(amount)
-                        if (cents == null) { error = "金额格式不正确"; return@Button }
-                        val result = repository.upsertAutomationRule(AutomationRule(editingRule?.id ?: UUID.randomUUID().toString(), name, type, frequency, monthText.toIntOrNull() ?: 1, dayText.toIntOrNull() ?: 1, cents, categoryId, memberId, remark, enabled, editingRule?.lastRunDate))
-                        if (result == null) onBack() else error = result
-                    }) { Text("保存") }
+                    Button(
+                        modifier = Modifier.fillMaxWidth(),
+                        onClick = {
+                            val cents = AmountUtil.parseToCents(amount)
+                            if (cents == null) {
+                                error = "金额格式不正确"
+                                return@Button
+                            }
+                            val result = repository.upsertAutomationRule(
+                                AutomationRule(
+                                    id = editingRule?.id ?: UUID.randomUUID().toString(),
+                                    name = name,
+                                    type = type,
+                                    frequency = frequency,
+                                    month = monthText.toIntOrNull() ?: 1,
+                                    day = dayText.toIntOrNull() ?: 1,
+                                    amount = cents,
+                                    categoryId = categoryId,
+                                    memberId = memberId,
+                                    remark = remark,
+                                    enabled = enabled,
+                                    lastRunDate = editingRule?.lastRunDate
+                                )
+                            )
+                            if (result == null) onBack() else error = result
+                        }
+                    ) { Text("保存") }
                 }
             }
         }
