@@ -45,6 +45,7 @@ import java.util.Calendar
 @Composable
 fun CalendarScreen(
     repository: AppDataRepository,
+    onBack: () -> Unit,
     modifier: Modifier = Modifier
 ) {
     val data by repository.data.collectAsState()
@@ -84,7 +85,10 @@ fun CalendarScreen(
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Text("日历", style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Black)
+                Row(horizontalArrangement = Arrangement.spacedBy(10.dp), verticalAlignment = Alignment.CenterVertically) {
+                    OutlinedButton(onClick = onBack) { Text("<") }
+                    Text("日历", style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Black)
+                }
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     OutlinedButton(onClick = {
                         if (month == 0) {

@@ -1,6 +1,7 @@
 ﻿package com.komugi.komugiaccounting.ui.home
 
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.detectHorizontalDragGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -25,6 +26,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -52,25 +54,14 @@ fun HomeScreen(
     var detailFilterRequest by remember { mutableStateOf<DetailFilterRequest?>(null) }
 
     Column(modifier = modifier) {
-        Row(
-            modifier = Modifier.padding(horizontal = 18.dp, vertical = 10.dp),
-            horizontalArrangement = Arrangement.spacedBy(8.dp)
-        ) {
-            listOf("首页", "明细", "图表", "日历").forEachIndexed { index, title ->
-                FilterChip(
-                    selected = page == index,
-                    onClick = {
-                        if (index == 1) detailFilterRequest = null
-                        page = index
-                    },
-                    label = { Text(title) }
-                )
-            }
-        }
         when (page) {
             0 -> HomeOverviewScreen(
                 viewModel = homeViewModel,
                 onEditRecord = onEditRecord,
+                onOpenPage = { targetPage ->
+                    if (targetPage == 1) detailFilterRequest = null
+                    page = targetPage
+                },
                 onOpenCategoryDetail = { request ->
                     detailFilterRequest = request
                     page = 1
@@ -79,10 +70,20 @@ fun HomeScreen(
             1 -> DetailScreen(
                 viewModel = detailViewModel,
                 onEditRecord = onEditRecord,
-                filterRequest = detailFilterRequest
+                filterRequest = detailFilterRequest,
+                onBack = { page = 0 },
+                modifier = Modifier.swipeRightToBack { page = 0 }
             )
-            2 -> ChartScreen(repository = repository)
-            3 -> CalendarScreen(repository = repository)
+            2 -> ChartScreen(
+                repository = repository,
+                onBack = { page = 0 },
+                modifier = Modifier.swipeRightToBack { page = 0 }
+            )
+            3 -> CalendarScreen(
+                repository = repository,
+                onBack = { page = 0 },
+                modifier = Modifier.swipeRightToBack { page = 0 }
+            )
         }
     }
 }
@@ -91,6 +92,7 @@ fun HomeScreen(
 private fun HomeOverviewScreen(
     viewModel: HomeViewModel,
     onEditRecord: (String) -> Unit,
+    onOpenPage: (Int) -> Unit,
     onOpenCategoryDetail: (DetailFilterRequest) -> Unit,
     modifier: Modifier = Modifier
 ) {
@@ -112,6 +114,13 @@ private fun HomeOverviewScreen(
             Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
                 Text("小麦账本", fontSize = 34.sp, fontWeight = FontWeight.Black, color = MaterialTheme.colorScheme.onBackground)
                 Text("本地保存的个人收支记录", color = MaterialTheme.colorScheme.onSurfaceVariant)
+            }
+        }
+        item {
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                FilterChip(selected = false, onClick = { onOpenPage(1) }, label = { Text("明细") })
+                FilterChip(selected = false, onClick = { onOpenPage(2) }, label = { Text("图表") })
+                FilterChip(selected = false, onClick = { onOpenPage(3) }, label = { Text("日历") })
             }
         }
         item {
@@ -251,5 +260,16 @@ private fun monthCategoryFilter(monthOffset: Int, type: RecordType, categoryId: 
         categoryId = categoryId,
         startDate = DateTimeUtil.formatDate(start),
         endDate = DateTimeUtil.formatDate(endInclusive)
+    )
+}
+
+private fun Modifier.swipeRightToBack(onBack: () -> Unit): Modifier = pointerInput(Unit) {
+    var totalDrag = 0f
+    detectHorizontalDragGestures(
+        onDragStart = { totalDrag = 0f },
+        onHorizontalDrag = { _, dragAmount -> totalDrag += dragAmount },
+        onDragEnd = {
+            if (totalDrag > 90f) onBack()
+        }
     )
 }

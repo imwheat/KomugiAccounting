@@ -38,6 +38,7 @@ import java.util.Calendar
 @Composable
 fun ChartScreen(
     repository: AppDataRepository,
+    onBack: () -> Unit,
     modifier: Modifier = Modifier
 ) {
     val data by repository.data.collectAsState()
@@ -68,7 +69,10 @@ fun ChartScreen(
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Text("年度图表", style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Black)
+                Row(horizontalArrangement = Arrangement.spacedBy(10.dp), verticalAlignment = Alignment.CenterVertically) {
+                    OutlinedButton(onClick = onBack) { Text("<") }
+                    Text("年度图表", style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Black)
+                }
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     OutlinedButton(onClick = { year -= 1 }) { Text("上一年") }
                     OutlinedButton(onClick = { year += 1 }) { Text("下一年") }

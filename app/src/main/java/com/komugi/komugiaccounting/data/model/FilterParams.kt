@@ -9,7 +9,8 @@ data class FilterParams(
     val startTime: Long? = null,
     val endTime: Long? = null,
     val keyword: String = "",
-    val sortMode: SortMode = SortMode.TIME_DESC
+    val sortMode: SortMode = SortMode.TIME_DESC,
+    val includeRefunded: Boolean = true
 )
 
 enum class SortMode {
