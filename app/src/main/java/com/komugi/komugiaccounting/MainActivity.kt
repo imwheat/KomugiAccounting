@@ -7,9 +7,7 @@ import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.compose.foundation.background
 import androidx.compose.foundation.isSystemInDarkTheme
-import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.MaterialTheme
@@ -26,15 +24,13 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
-import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.unit.dp
 import com.komugi.komugiaccounting.data.model.ThemeMode
 import com.komugi.komugiaccounting.data.repository.AppDataRepository
 import com.komugi.komugiaccounting.navigation.Screen
 import com.komugi.komugiaccounting.ui.add.AddRecordScreen
 import com.komugi.komugiaccounting.ui.add.AddRecordViewModel
+import com.komugi.komugiaccounting.ui.automation.AutomationScreen
 import com.komugi.komugiaccounting.ui.detail.DetailViewModel
 import com.komugi.komugiaccounting.ui.home.HomeScreen
 import com.komugi.komugiaccounting.ui.home.HomeViewModel
@@ -69,6 +65,7 @@ fun AccountingApp(repository: AppDataRepository) {
     var editingRecordId by remember { mutableStateOf<String?>(null) }
     var pendingHomePage by remember { mutableStateOf<Int?>(null) }
     var showHomeBottomBar by remember { mutableStateOf(true) }
+    var showAutomationBottomBar by remember { mutableStateOf(true) }
     val homeViewModel = remember(repository) { HomeViewModel(repository) }
     val addRecordViewModel = remember(repository) { AddRecordViewModel(repository) }
     val detailViewModel = remember(repository) { DetailViewModel(repository) }
@@ -104,7 +101,11 @@ fun AccountingApp(repository: AppDataRepository) {
     Scaffold(
         snackbarHost = { SnackbarHost(snackbarHostState) },
         bottomBar = {
-            if (currentScreen != Screen.Add && (currentScreen != Screen.Home || showHomeBottomBar)) {
+            if (
+                currentScreen != Screen.Add &&
+                (currentScreen != Screen.Home || showHomeBottomBar) &&
+                (currentScreen != Screen.Automation || showAutomationBottomBar)
+            ) {
                 NavigationBar(containerColor = MaterialTheme.colorScheme.surface.copy(alpha = 0.94f)) {
                     bottomScreens.forEach { screen ->
                         NavigationBarItem(
@@ -145,7 +146,10 @@ fun AccountingApp(repository: AppDataRepository) {
                     repository = repository,
                     onBack = ::navigateBack
                 )
-                Screen.Automation -> AutomationPlaceholder()
+                Screen.Automation -> AutomationScreen(
+                    repository = repository,
+                    onBottomBarVisibleChange = { showAutomationBottomBar = it }
+                )
                 Screen.Add -> AddRecordScreen(
                     viewModel = addRecordViewModel,
                     onSaved = { message ->
@@ -160,19 +164,6 @@ fun AccountingApp(repository: AppDataRepository) {
                     onOpenTemplates = { navigateTo(Screen.Template) }
                 )
             }
-        }
-    }
-}
-
-@Composable
-private fun AutomationPlaceholder(modifier: Modifier = Modifier) {
-    Box(
-        modifier = modifier.fillMaxSize(),
-        contentAlignment = Alignment.Center
-    ) {
-        Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            Text("自动化", style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Black)
-            Text("后续补充", color = MaterialTheme.colorScheme.onSurfaceVariant)
         }
     }
 }

@@ -3,6 +3,10 @@
 import android.content.Context
 import com.komugi.komugiaccounting.data.model.AppData
 import com.komugi.komugiaccounting.data.model.AppSettings
+import com.komugi.komugiaccounting.data.model.AutoBookRule
+import com.komugi.komugiaccounting.data.model.AutoBookTodo
+import com.komugi.komugiaccounting.data.model.AutomationFrequency
+import com.komugi.komugiaccounting.data.model.AutomationRule
 import com.komugi.komugiaccounting.data.model.Category
 import com.komugi.komugiaccounting.data.model.Member
 import com.komugi.komugiaccounting.data.model.RecordType
@@ -22,6 +26,10 @@ class AppDataRepository private constructor(context: Context) {
     private val storage = JsonFileStorage(context.applicationContext)
     private val _data = MutableStateFlow(storage.loadData())
     val data: StateFlow<AppData> = _data.asStateFlow()
+
+    init {
+        runDueAutomationRules()
+    }
 
     fun addRecord(record: TransactionRecord) = update { current ->
         current.copy(
@@ -255,6 +263,164 @@ class AppDataRepository private constructor(context: Context) {
         current.copy(templates = current.templates.filterNot { it.id == templateId })
     }
 
+    fun upsertAutomationRule(rule: AutomationRule): String? {
+        val cleanName = rule.name.trim()
+        val current = _data.value
+        if (cleanName.isEmpty()) return "请输入名称"
+        if (rule.amount <= 0L) return "请输入金额"
+        if (current.categories.none { it.id == rule.categoryId && it.type == rule.type }) return "请选择分类"
+        if (current.members.none { it.id == rule.memberId }) return "请选择成员"
+        val cleanRule = rule.copy(
+            name = cleanName,
+            remark = rule.remark.trim(),
+            month = rule.month.coerceIn(1, 12),
+            day = rule.day.coerceIn(1, 31)
+        )
+        update { data ->
+            val exists = data.automationRules.any { it.id == cleanRule.id }
+            data.copy(
+                automationRules = if (exists) {
+                    data.automationRules.map { if (it.id == cleanRule.id) cleanRule else it }
+                } else {
+                    data.automationRules + cleanRule
+                }
+            )
+        }
+        runDueAutomationRules()
+        return null
+    }
+
+    fun deleteAutomationRule(ruleId: String) = update { current ->
+        current.copy(automationRules = current.automationRules.filterNot { it.id == ruleId })
+    }
+
+    fun setAutomationRuleEnabled(ruleId: String, enabled: Boolean) = update { current ->
+        current.copy(
+            automationRules = current.automationRules.map { rule ->
+                if (rule.id == ruleId) rule.copy(enabled = enabled) else rule
+            }
+        )
+    }
+
+    fun upsertAutoBookRule(rule: AutoBookRule): String? {
+        val cleanName = rule.name.trim()
+        val cleanPattern = rule.textPattern.trim()
+        if (cleanName.isEmpty()) return "请输入规则名称"
+        if (cleanPattern.isEmpty() || !cleanPattern.contains("XXX")) return "通知文本规则需要包含 XXX"
+        val cleanRule = rule.copy(
+            name = cleanName,
+            titleKeyword = rule.titleKeyword.trim(),
+            textPattern = cleanPattern
+        )
+        update { data ->
+            val exists = data.autoBookRules.any { it.id == cleanRule.id }
+            data.copy(
+                autoBookRules = if (exists) {
+                    data.autoBookRules.map { if (it.id == cleanRule.id) cleanRule else it }
+                } else {
+                    data.autoBookRules + cleanRule
+                }
+            )
+        }
+        return null
+    }
+
+    fun deleteAutoBookRule(ruleId: String) = update { current ->
+        current.copy(autoBookRules = current.autoBookRules.filterNot { it.id == ruleId })
+    }
+
+    fun setAutoBookRuleEnabled(ruleId: String, enabled: Boolean) = update { current ->
+        current.copy(autoBookRules = current.autoBookRules.map { if (it.id == ruleId) it.copy(enabled = enabled) else it })
+    }
+
+    fun handleNotification(title: String, text: String, postTime: Long) {
+        update { current ->
+            val newTodos = current.autoBookRules
+                .filter { it.enabled }
+                .mapNotNull { rule ->
+                    if (rule.titleKeyword.isNotBlank() && !title.contains(rule.titleKeyword)) return@mapNotNull null
+                    val amount = rule.extractAmount(text) ?: return@mapNotNull null
+                    AutoBookTodo(
+                        id = UUID.randomUUID().toString(),
+                        ruleId = rule.id,
+                        ruleName = rule.name,
+                        type = rule.type,
+                        amount = amount,
+                        notificationTitle = title,
+                        notificationText = text,
+                        dateTime = postTime
+                    )
+                }
+            if (newTodos.isEmpty()) current else current.copy(autoBookTodos = current.autoBookTodos + newTodos)
+        }
+    }
+
+    fun ignoreAutoBookTodo(todoId: String) = update { current ->
+        current.copy(autoBookTodos = current.autoBookTodos.filterNot { it.id == todoId })
+    }
+
+    fun addAutoBookTodoWithTemplate(todoId: String, templateId: String): String? {
+        val current = _data.value
+        val todo = current.autoBookTodos.firstOrNull { it.id == todoId } ?: return "待办不存在"
+        val template = current.templates.firstOrNull { it.id == templateId } ?: return "模板不存在"
+        if (template.type != todo.type) return "模板类型不匹配"
+        val now = DateTimeUtil.now()
+        val record = TransactionRecord(
+            id = UUID.randomUUID().toString(),
+            type = todo.type,
+            amount = todo.amount,
+            categoryId = template.categoryId,
+            memberId = template.memberId,
+            remark = template.remark.ifBlank { todo.ruleName },
+            dateTime = todo.dateTime,
+            createdAt = now,
+            updatedAt = now
+        )
+        update { data ->
+            data.copy(
+                records = (data.records + record).sortedByDescending { it.dateTime },
+                autoBookTodos = data.autoBookTodos.filterNot { it.id == todoId }
+            )
+        }
+        return null
+    }
+
+    fun removeAutoBookTodo(todoId: String) = ignoreAutoBookTodo(todoId)
+
+    fun runDueAutomationRules() {
+        update { current ->
+            val today = DateTimeUtil.formatDate(DateTimeUtil.now())
+            val now = DateTimeUtil.now()
+            val generatedRecords = mutableListOf<TransactionRecord>()
+            val nextRules = current.automationRules.map { rule ->
+                if (!rule.enabled || rule.lastRunDate == today || !rule.isDueToday(now)) {
+                    rule
+                } else {
+                    generatedRecords += TransactionRecord(
+                        id = UUID.randomUUID().toString(),
+                        type = rule.type,
+                        amount = rule.amount,
+                        categoryId = rule.categoryId,
+                        memberId = rule.memberId,
+                        remark = rule.remark.ifBlank { rule.name },
+                        dateTime = now,
+                        createdAt = now,
+                        updatedAt = now
+                    )
+                    rule.copy(lastRunDate = today)
+                }
+            }
+            if (generatedRecords.isEmpty()) {
+                current
+            } else {
+                current.copy(
+                    records = (current.records + generatedRecords).sortedByDescending { it.dateTime },
+                    automationRules = nextRules
+                )
+            }
+        }
+    }
+
     fun updateSettings(settings: AppSettings) = update { it.copy(settings = settings) }
 
     fun exportJson(): String = storage.exportJson(_data.value)
@@ -356,6 +522,33 @@ class AppDataRepository private constructor(context: Context) {
         val next = block(_data.value)
         _data.value = next
         storage.saveData(next)
+    }
+
+    private fun AutomationRule.isDueToday(now: Long): Boolean {
+        val calendar = java.util.Calendar.getInstance().apply { timeInMillis = now }
+        return when (frequency) {
+            AutomationFrequency.DAILY -> true
+            AutomationFrequency.MONTHLY -> {
+                val maxDay = calendar.getActualMaximum(java.util.Calendar.DAY_OF_MONTH)
+                calendar.get(java.util.Calendar.DAY_OF_MONTH) == day.coerceAtMost(maxDay)
+            }
+            AutomationFrequency.YEARLY -> {
+                val currentMonth = calendar.get(java.util.Calendar.MONTH) + 1
+                val maxDay = calendar.getActualMaximum(java.util.Calendar.DAY_OF_MONTH)
+                currentMonth == month && calendar.get(java.util.Calendar.DAY_OF_MONTH) == day.coerceAtMost(maxDay)
+            }
+        }
+    }
+
+    private fun AutoBookRule.extractAmount(text: String): Long? {
+        val parts = textPattern.split("XXX")
+        if (parts.size != 2) return null
+        val start = parts[0]
+        val end = parts[1]
+        val startIndex = if (start.isBlank()) 0 else text.indexOf(start).takeIf { it >= 0 }?.plus(start.length) ?: return null
+        val endIndex = if (end.isBlank()) text.length else text.indexOf(end, startIndex).takeIf { it >= startIndex } ?: return null
+        val amountText = text.substring(startIndex, endIndex).trim().replace(",", "")
+        return AmountUtil.parseToCents(amountText)
     }
 
     private fun AppData.exportRecords(startTime: Long?, endTime: Long?): List<TransactionRecord> =

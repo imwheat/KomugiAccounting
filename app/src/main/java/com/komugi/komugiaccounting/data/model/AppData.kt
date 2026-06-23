@@ -6,5 +6,8 @@ data class AppData(
     val categories: List<Category> = emptyList(),
     val members: List<Member> = emptyList(),
     val templates: List<Template> = emptyList(),
+    val automationRules: List<AutomationRule> = emptyList(),
+    val autoBookRules: List<AutoBookRule> = emptyList(),
+    val autoBookTodos: List<AutoBookTodo> = emptyList(),
     val settings: AppSettings = AppSettings()
 )

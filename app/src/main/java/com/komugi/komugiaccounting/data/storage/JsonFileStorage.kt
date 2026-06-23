@@ -3,6 +3,10 @@
 import android.content.Context
 import com.komugi.komugiaccounting.data.model.AppData
 import com.komugi.komugiaccounting.data.model.AppSettings
+import com.komugi.komugiaccounting.data.model.AutoBookRule
+import com.komugi.komugiaccounting.data.model.AutoBookTodo
+import com.komugi.komugiaccounting.data.model.AutomationFrequency
+import com.komugi.komugiaccounting.data.model.AutomationRule
 import com.komugi.komugiaccounting.data.model.Category
 import com.komugi.komugiaccounting.data.model.Member
 import com.komugi.komugiaccounting.data.model.RecordType
@@ -92,6 +96,12 @@ class JsonFileStorage(private val context: Context) {
                     memberId = migrateMemberId(template.memberId)
                 )
             },
+            automationRules = automationRules.map { rule ->
+                rule.copy(
+                    categoryId = migrateCategoryId(rule.categoryId),
+                    memberId = migrateMemberId(rule.memberId)
+                )
+            },
             settings = settings.copy(
                 lastExpenseCategoryId = settings.lastExpenseCategoryId?.let(::migrateCategoryId),
                 lastIncomeCategoryId = settings.lastIncomeCategoryId?.let(::migrateCategoryId),
@@ -107,6 +117,9 @@ class JsonFileStorage(private val context: Context) {
         put("categories", JSONArray().apply { data.categories.forEach { put(encodeCategory(it)) } })
         put("members", JSONArray().apply { data.members.forEach { put(encodeMember(it)) } })
         put("templates", JSONArray().apply { data.templates.forEach { put(encodeTemplate(it)) } })
+        put("automationRules", JSONArray().apply { data.automationRules.forEach { put(encodeAutomationRule(it)) } })
+        put("autoBookRules", JSONArray().apply { data.autoBookRules.forEach { put(encodeAutoBookRule(it)) } })
+        put("autoBookTodos", JSONArray().apply { data.autoBookTodos.forEach { put(encodeAutoBookTodo(it)) } })
         put("settings", encodeSettings(data.settings))
     }
 
@@ -154,6 +167,41 @@ class JsonFileStorage(private val context: Context) {
         put("remark", template.remark)
     }
 
+    private fun encodeAutomationRule(rule: AutomationRule) = JSONObject().apply {
+        put("id", rule.id)
+        put("name", rule.name)
+        put("type", rule.type.name)
+        put("frequency", rule.frequency.name)
+        put("month", rule.month)
+        put("day", rule.day)
+        put("amount", rule.amount)
+        put("categoryId", rule.categoryId)
+        put("memberId", rule.memberId)
+        put("remark", rule.remark)
+        put("enabled", rule.enabled)
+        put("lastRunDate", rule.lastRunDate)
+    }
+
+    private fun encodeAutoBookRule(rule: AutoBookRule) = JSONObject().apply {
+        put("id", rule.id)
+        put("name", rule.name)
+        put("titleKeyword", rule.titleKeyword)
+        put("textPattern", rule.textPattern)
+        put("type", rule.type.name)
+        put("enabled", rule.enabled)
+    }
+
+    private fun encodeAutoBookTodo(todo: AutoBookTodo) = JSONObject().apply {
+        put("id", todo.id)
+        put("ruleId", todo.ruleId)
+        put("ruleName", todo.ruleName)
+        put("type", todo.type.name)
+        put("amount", todo.amount)
+        put("notificationTitle", todo.notificationTitle)
+        put("notificationText", todo.notificationText)
+        put("dateTime", todo.dateTime)
+    }
+
     private fun encodeSettings(settings: AppSettings) = JSONObject().apply {
         put("themeMode", settings.themeMode.name)
         put("lastExpenseCategoryId", settings.lastExpenseCategoryId)
@@ -169,6 +217,9 @@ class JsonFileStorage(private val context: Context) {
         categories = json.optJSONArray("categories").toList(::decodeCategory),
         members = json.optJSONArray("members").toList(::decodeMember),
         templates = json.optJSONArray("templates").toList(::decodeTemplate),
+        automationRules = json.optJSONArray("automationRules").toList(::decodeAutomationRule),
+        autoBookRules = json.optJSONArray("autoBookRules").toList(::decodeAutoBookRule),
+        autoBookTodos = json.optJSONArray("autoBookTodos").toList(::decodeAutoBookTodo),
         settings = json.optJSONObject("settings")?.let(::decodeSettings) ?: AppSettings()
     )
 
@@ -214,6 +265,41 @@ class JsonFileStorage(private val context: Context) {
         categoryId = json.getString("categoryId"),
         memberId = json.getString("memberId"),
         remark = json.optString("remark", "")
+    )
+
+    private fun decodeAutomationRule(json: JSONObject) = AutomationRule(
+        id = json.getString("id"),
+        name = json.optString("name", ""),
+        type = RecordType.valueOf(json.getString("type")),
+        frequency = AutomationFrequency.valueOf(json.getString("frequency")),
+        month = json.optInt("month", 1).coerceIn(1, 12),
+        day = json.optInt("day", 1).coerceIn(1, 31),
+        amount = json.getLong("amount"),
+        categoryId = json.getString("categoryId"),
+        memberId = json.getString("memberId"),
+        remark = json.optString("remark", ""),
+        enabled = json.optBoolean("enabled", true),
+        lastRunDate = json.optNullableString("lastRunDate")
+    )
+
+    private fun decodeAutoBookRule(json: JSONObject) = AutoBookRule(
+        id = json.getString("id"),
+        name = json.optString("name", ""),
+        titleKeyword = json.optString("titleKeyword", ""),
+        textPattern = json.optString("textPattern", ""),
+        type = RecordType.valueOf(json.getString("type")),
+        enabled = json.optBoolean("enabled", true)
+    )
+
+    private fun decodeAutoBookTodo(json: JSONObject) = AutoBookTodo(
+        id = json.getString("id"),
+        ruleId = json.getString("ruleId"),
+        ruleName = json.optString("ruleName", ""),
+        type = RecordType.valueOf(json.getString("type")),
+        amount = json.getLong("amount"),
+        notificationTitle = json.optString("notificationTitle", ""),
+        notificationText = json.optString("notificationText", ""),
+        dateTime = json.getLong("dateTime")
     )
 
     private fun decodeSettings(json: JSONObject) = AppSettings(
