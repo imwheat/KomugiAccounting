@@ -9,5 +9,6 @@ data class AppData(
     val automationRules: List<AutomationRule> = emptyList(),
     val autoBookRules: List<AutoBookRule> = emptyList(),
     val autoBookTodos: List<AutoBookTodo> = emptyList(),
+    val autoBookNotificationLogs: List<AutoBookNotificationLog> = emptyList(),
     val settings: AppSettings = AppSettings()
 )

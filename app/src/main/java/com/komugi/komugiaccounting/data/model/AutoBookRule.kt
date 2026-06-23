@@ -20,6 +20,13 @@ data class AutoBookTodo(
     val dateTime: Long
 )
 
+data class AutoBookNotificationLog(
+    val id: String,
+    val title: String,
+    val text: String,
+    val dateTime: Long
+)
+
 data class AddRecordDraft(
     val type: RecordType,
     val amount: Long,

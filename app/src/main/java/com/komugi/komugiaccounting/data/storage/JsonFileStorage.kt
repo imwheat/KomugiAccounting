@@ -3,6 +3,7 @@
 import android.content.Context
 import com.komugi.komugiaccounting.data.model.AppData
 import com.komugi.komugiaccounting.data.model.AppSettings
+import com.komugi.komugiaccounting.data.model.AutoBookNotificationLog
 import com.komugi.komugiaccounting.data.model.AutoBookRule
 import com.komugi.komugiaccounting.data.model.AutoBookTodo
 import com.komugi.komugiaccounting.data.model.AutomationFrequency
@@ -120,6 +121,7 @@ class JsonFileStorage(private val context: Context) {
         put("automationRules", JSONArray().apply { data.automationRules.forEach { put(encodeAutomationRule(it)) } })
         put("autoBookRules", JSONArray().apply { data.autoBookRules.forEach { put(encodeAutoBookRule(it)) } })
         put("autoBookTodos", JSONArray().apply { data.autoBookTodos.forEach { put(encodeAutoBookTodo(it)) } })
+        put("autoBookNotificationLogs", JSONArray().apply { data.autoBookNotificationLogs.forEach { put(encodeAutoBookNotificationLog(it)) } })
         put("settings", encodeSettings(data.settings))
     }
 
@@ -203,6 +205,13 @@ class JsonFileStorage(private val context: Context) {
         put("dateTime", todo.dateTime)
     }
 
+    private fun encodeAutoBookNotificationLog(log: AutoBookNotificationLog) = JSONObject().apply {
+        put("id", log.id)
+        put("title", log.title)
+        put("text", log.text)
+        put("dateTime", log.dateTime)
+    }
+
     private fun encodeSettings(settings: AppSettings) = JSONObject().apply {
         put("themeMode", settings.themeMode.name)
         put("lastExpenseCategoryId", settings.lastExpenseCategoryId)
@@ -221,6 +230,7 @@ class JsonFileStorage(private val context: Context) {
         automationRules = json.optJSONArray("automationRules").toList(::decodeAutomationRule),
         autoBookRules = json.optJSONArray("autoBookRules").toList(::decodeAutoBookRule),
         autoBookTodos = json.optJSONArray("autoBookTodos").toList(::decodeAutoBookTodo),
+        autoBookNotificationLogs = json.optJSONArray("autoBookNotificationLogs").toList(::decodeAutoBookNotificationLog),
         settings = json.optJSONObject("settings")?.let(::decodeSettings) ?: AppSettings()
     )
 
@@ -301,6 +311,13 @@ class JsonFileStorage(private val context: Context) {
         amount = json.getLong("amount"),
         notificationTitle = json.optString("notificationTitle", ""),
         notificationText = json.optString("notificationText", ""),
+        dateTime = json.getLong("dateTime")
+    )
+
+    private fun decodeAutoBookNotificationLog(json: JSONObject) = AutoBookNotificationLog(
+        id = json.getString("id"),
+        title = json.optString("title", ""),
+        text = json.optString("text", ""),
         dateTime = json.getLong("dateTime")
     )
 

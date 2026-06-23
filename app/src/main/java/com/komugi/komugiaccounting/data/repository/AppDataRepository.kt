@@ -3,6 +3,7 @@
 import android.content.Context
 import com.komugi.komugiaccounting.data.model.AppData
 import com.komugi.komugiaccounting.data.model.AppSettings
+import com.komugi.komugiaccounting.data.model.AutoBookNotificationLog
 import com.komugi.komugiaccounting.data.model.AutoBookRule
 import com.komugi.komugiaccounting.data.model.AutoBookTodo
 import com.komugi.komugiaccounting.data.model.AutomationFrequency
@@ -415,24 +416,40 @@ class AppDataRepository private constructor(context: Context) {
 
     fun handleNotification(title: String, text: String, postTime: Long) {
         update { current ->
-            val newTodos = current.autoBookRules
-                .filter { it.enabled }
-                .mapNotNull { rule ->
-                    if (rule.titleKeyword.isNotBlank() && !title.contains(rule.titleKeyword)) return@mapNotNull null
-                    val amount = rule.extractAmount(text) ?: return@mapNotNull null
-                    AutoBookTodo(
-                        id = UUID.randomUUID().toString(),
-                        ruleId = rule.id,
-                        ruleName = rule.name,
-                        type = rule.type,
-                        amount = amount,
-                        notificationTitle = title,
-                        notificationText = text,
-                        dateTime = postTime
-                    )
-                }
+            val log = AutoBookNotificationLog(
+                id = UUID.randomUUID().toString(),
+                title = title,
+                text = text,
+                dateTime = postTime
+            )
+            val newTodos = matchAutoBookTodos(current.autoBookRules, title, text, postTime)
+            current.copy(
+                autoBookNotificationLogs = (listOf(log) + current.autoBookNotificationLogs).take(MAX_NOTIFICATION_LOGS),
+                autoBookTodos = current.autoBookTodos + newTodos
+            )
+        }
+    }
+
+    fun queryAutoBookNotificationLogs(titleKeyword: String, startTime: Long, endExclusive: Long): List<AutoBookNotificationLog> {
+        val cleanTitleKeyword = titleKeyword.trim()
+        return _data.value.autoBookNotificationLogs
+            .filter { it.dateTime in startTime until endExclusive }
+            .filter { cleanTitleKeyword.isBlank() || it.title.contains(cleanTitleKeyword) }
+            .sortedByDescending { it.dateTime }
+    }
+
+    fun applyAutoBookTestLogs(logIds: Set<String>): Int {
+        if (logIds.isEmpty()) return 0
+        var addedCount = 0
+        update { current ->
+            val logs = current.autoBookNotificationLogs.filter { it.id in logIds }
+            val newTodos = logs.flatMap { log ->
+                matchAutoBookTodos(current.autoBookRules, log.title, log.text, log.dateTime)
+            }
+            addedCount = newTodos.size
             if (newTodos.isEmpty()) current else current.copy(autoBookTodos = current.autoBookTodos + newTodos)
         }
+        return addedCount
     }
 
     fun ignoreAutoBookTodo(todoId: String) = update { current ->
@@ -631,6 +648,24 @@ class AppDataRepository private constructor(context: Context) {
         return AmountUtil.parseToCents(amountText)
     }
 
+    private fun matchAutoBookTodos(rules: List<AutoBookRule>, title: String, text: String, dateTime: Long): List<AutoBookTodo> =
+        rules
+            .filter { it.enabled }
+            .mapNotNull { rule ->
+                if (rule.titleKeyword.isNotBlank() && !title.contains(rule.titleKeyword)) return@mapNotNull null
+                val amount = rule.extractAmount(text) ?: return@mapNotNull null
+                AutoBookTodo(
+                    id = UUID.randomUUID().toString(),
+                    ruleId = rule.id,
+                    ruleName = rule.name,
+                    type = rule.type,
+                    amount = amount,
+                    notificationTitle = title,
+                    notificationText = text,
+                    dateTime = dateTime
+                )
+            }
+
     private fun String.firstIconText(): String =
         trim().firstOrNull()?.toString().orEmpty()
 
@@ -690,6 +725,8 @@ class AppDataRepository private constructor(context: Context) {
             .toList()
 
     companion object {
+        private const val MAX_NOTIFICATION_LOGS = 500
+
         @Volatile private var instance: AppDataRepository? = null
 
         fun get(context: Context): AppDataRepository = instance ?: synchronized(this) {

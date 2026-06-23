@@ -37,6 +37,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
+import com.komugi.komugiaccounting.data.model.AutoBookNotificationLog
 import com.komugi.komugiaccounting.data.model.AutoBookRule
 import com.komugi.komugiaccounting.data.model.AutoBookTodo
 import com.komugi.komugiaccounting.data.model.AutomationFrequency
@@ -55,6 +56,7 @@ private sealed interface AutomationPage {
     data object TodoList : AutomationPage
     data object AutoBookRules : AutomationPage
     data class AutoBookEdit(val ruleId: String?) : AutomationPage
+    data object AutoBookTest : AutomationPage
     data class RuleList(val type: RecordType) : AutomationPage
     data class RuleEdit(val type: RecordType, val ruleId: String?) : AutomationPage
     data class CategoryPicker(val type: RecordType, val ruleId: String?) : AutomationPage
@@ -95,6 +97,7 @@ fun AutomationScreen(
             }
             AutomationPage.AutoBookRules -> AutomationPage.Main
             is AutomationPage.AutoBookEdit -> AutomationPage.AutoBookRules
+            AutomationPage.AutoBookTest -> AutomationPage.AutoBookRules
             is AutomationPage.CategoryPicker -> AutomationPage.RuleEdit(current.type, current.ruleId)
             is AutomationPage.RuleEdit -> AutomationPage.RuleList(current.type)
             is AutomationPage.RuleList -> AutomationPage.Main
@@ -120,10 +123,12 @@ fun AutomationScreen(
             repository = repository,
             onBack = { page = AutomationPage.Main },
             onCreate = { page = AutomationPage.AutoBookEdit(null) },
+            onTest = { page = AutomationPage.AutoBookTest },
             onEdit = { page = AutomationPage.AutoBookEdit(it) },
             modifier = modifier
         )
         is AutomationPage.AutoBookEdit -> AutoBookRuleEditScreen(repository, current.ruleId, onBack = { page = AutomationPage.AutoBookRules }, modifier)
+        AutomationPage.AutoBookTest -> AutoBookTestScreen(repository, onBack = { page = AutomationPage.AutoBookRules }, modifier)
         is AutomationPage.RuleList -> AutomationRuleListScreen(
             repository = repository,
             type = current.type,
@@ -202,11 +207,18 @@ private fun AutoBookRuleListScreen(
     repository: AppDataRepository,
     onBack: () -> Unit,
     onCreate: () -> Unit,
+    onTest: () -> Unit,
     onEdit: (String) -> Unit,
     modifier: Modifier = Modifier
 ) {
     val data by repository.data.collectAsState()
     LazyColumn(modifier = modifier.padding(18.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+        item {
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                OutlinedButton(modifier = Modifier.weight(1f), onClick = onTest) { Text("测试") }
+                Button(modifier = Modifier.weight(1f), onClick = onCreate) { Text("新建") }
+            }
+        }
         item {
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
                 Row(horizontalArrangement = Arrangement.spacedBy(10.dp), verticalAlignment = Alignment.CenterVertically) {
@@ -304,6 +316,108 @@ private fun AutoBookRuleEditScreen(repository: AppDataRepository, ruleId: String
                     }
                 }
             }
+        }
+    }
+}
+
+@Composable
+private fun AutoBookTestScreen(repository: AppDataRepository, onBack: () -> Unit, modifier: Modifier = Modifier) {
+    var titleKeyword by rememberSaveable { mutableStateOf("") }
+    var startDate by rememberSaveable { mutableStateOf(DateTimeUtil.formatDate(DateTimeUtil.startOfDay())) }
+    var endDate by rememberSaveable { mutableStateOf(DateTimeUtil.formatDate(DateTimeUtil.startOfDay())) }
+    var results by remember { mutableStateOf<List<AutoBookNotificationLog>>(emptyList()) }
+    var message by rememberSaveable { mutableStateOf<String?>(null) }
+
+    LazyColumn(modifier = modifier.padding(18.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+        item {
+            Row(horizontalArrangement = Arrangement.spacedBy(10.dp), verticalAlignment = Alignment.CenterVertically) {
+                OutlinedButton(onClick = onBack) { Text("<") }
+                Text("测试自动记账", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Black)
+            }
+        }
+        item {
+            Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)) {
+                Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                    OutlinedTextField(
+                        value = titleKeyword,
+                        onValueChange = { titleKeyword = it },
+                        label = { Text("标题关键词") },
+                        singleLine = true,
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                    OutlinedTextField(
+                        value = startDate,
+                        onValueChange = { startDate = it },
+                        label = { Text("开始日期 yyyy-MM-dd") },
+                        singleLine = true,
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                    OutlinedTextField(
+                        value = endDate,
+                        onValueChange = { endDate = it },
+                        label = { Text("结束日期 yyyy-MM-dd") },
+                        singleLine = true,
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                    Button(
+                        modifier = Modifier.fillMaxWidth(),
+                        onClick = {
+                            val start = DateTimeUtil.parseDate(startDate)
+                            val end = DateTimeUtil.parseDate(endDate)
+                            if (start == null || end == null) {
+                                message = "日期格式不正确"
+                            } else {
+                                val endExclusive = DateTimeUtil.endExclusiveFromStart(end, java.util.Calendar.DAY_OF_YEAR, 1)
+                                results = repository.queryAutoBookNotificationLogs(titleKeyword, start, endExclusive)
+                                message = "读取到 ${results.size} 条消息"
+                            }
+                        }
+                    ) { Text("读取消息") }
+                    message?.let { Text(it, color = MaterialTheme.colorScheme.onSurfaceVariant) }
+                }
+            }
+        }
+        if (results.isEmpty()) {
+            item { Text("没有读取到消息记录。", color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(12.dp)) }
+        } else {
+            items(results, key = { it.id }) { log ->
+                AutoBookNotificationLogCard(log)
+            }
+        }
+        item {
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                OutlinedButton(
+                    modifier = Modifier.weight(1f),
+                    onClick = {
+                        titleKeyword = ""
+                        startDate = DateTimeUtil.formatDate(DateTimeUtil.startOfDay())
+                        endDate = DateTimeUtil.formatDate(DateTimeUtil.startOfDay())
+                        results = emptyList()
+                        message = null
+                    }
+                ) { Text("清空") }
+                Button(
+                    modifier = Modifier.weight(1f),
+                    enabled = results.isNotEmpty(),
+                    onClick = {
+                        val count = repository.applyAutoBookTestLogs(results.map { it.id }.toSet())
+                        message = "已写入 ${count} 条自动记账代办"
+                    }
+                ) { Text("应用") }
+            }
+        }
+    }
+}
+
+@Composable
+private fun AutoBookNotificationLogCard(log: AutoBookNotificationLog) {
+    Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)) {
+        Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                Text(log.title.ifBlank { "无标题" }, fontWeight = FontWeight.Bold)
+                Text(DateTimeUtil.formatDisplayDateTime(log.dateTime), color = MaterialTheme.colorScheme.onSurfaceVariant)
+            }
+            Text(log.text.ifBlank { "无内容" }, color = MaterialTheme.colorScheme.onSurfaceVariant)
         }
     }
 }
