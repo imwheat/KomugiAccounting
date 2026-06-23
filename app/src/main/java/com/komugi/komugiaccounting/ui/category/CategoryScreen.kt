@@ -102,7 +102,7 @@ private fun CategoryListScreen(
 
     fun saveCategory(categoryId: String, draft: CategoryEditState): Boolean {
         val result = repository.updateCategory(categoryId, draft.name)
-            ?: repository.updateCategoryStyle(categoryId, draft.iconName.ifBlank { draft.name.firstIconText() }, draft.color, draft.iconImageUri)
+            ?: repository.updateCategoryStyle(categoryId, draft.iconName.trim().ifBlank { draft.name.firstIconText() }, draft.color, draft.iconImageUri)
         message = result ?: "分类已保存"
         if (result == null) {
             repository.setCategoryEnabled(categoryId, draft.enabled)
@@ -307,7 +307,7 @@ private fun GroupEditCard(original: GroupEditState, draft: GroupEditState, onDra
 private fun CategoryInfoCard(category: Category, onEnabledChange: (Boolean) -> Unit, onEdit: () -> Unit) {
     Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)) {
         Row(Modifier.fillMaxWidth().alpha(if (category.enabled) 1f else 0.48f).padding(12.dp), horizontalArrangement = Arrangement.spacedBy(12.dp), verticalAlignment = Alignment.CenterVertically) {
-            CategoryIconBadge(category = category)
+            CategoryIconBadge(name = category.name, iconName = category.name.firstIconText(), color = category.color, iconImageUri = category.iconImageUri)
             Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(3.dp)) {
                 Text(category.name, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
                 Text("分组：${category.groupName.ifBlank { "未分组" }}", color = MaterialTheme.colorScheme.onSurfaceVariant)
@@ -445,7 +445,7 @@ private data class GroupEditState(val name: String, val iconName: String, val co
 private data class CategoryEditState(val name: String, val iconName: String, val color: String, val iconImageUri: String, val enabled: Boolean) {
     companion object {
         fun from(category: Category, type: RecordType) =
-            CategoryEditState(category.name, category.iconName.ifBlank { category.name.firstIconText() }, category.color.ifBlank { defaultColor(type) }, category.iconImageUri, category.enabled)
+            CategoryEditState(category.name, category.name.firstIconText(), category.color.ifBlank { defaultColor(type) }, category.iconImageUri, category.enabled)
     }
 }
 

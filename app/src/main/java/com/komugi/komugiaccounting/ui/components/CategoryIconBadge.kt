@@ -32,7 +32,7 @@ fun CategoryIconBadge(
 ) {
     CategoryIconBadge(
         name = category.displayNameForIcon(),
-        iconName = category.iconName,
+        iconName = if (category.name.startsWith("__group__")) category.iconName else category.name.firstIconText(),
         color = category.color,
         iconImageUri = category.iconImageUri,
         modifier = modifier,
@@ -97,3 +97,6 @@ fun Category.displayNameForIcon(): String =
 
 private fun iconText(iconName: String, name: String): String =
     iconName.trim().ifBlank { name.trim().firstOrNull()?.toString().orEmpty() }.take(2)
+
+private fun String.firstIconText(): String =
+    trim().firstOrNull()?.toString().orEmpty()
