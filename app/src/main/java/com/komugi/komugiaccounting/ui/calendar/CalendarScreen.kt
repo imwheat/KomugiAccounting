@@ -13,6 +13,7 @@ import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
@@ -160,13 +161,13 @@ fun CalendarScreen(
                     }
                     LazyVerticalGrid(
                         columns = GridCells.Fixed(7),
-                        modifier = Modifier.height(420.dp),
+                        modifier = Modifier.height(520.dp),
                         horizontalArrangement = Arrangement.spacedBy(6.dp),
-                        verticalArrangement = Arrangement.spacedBy(6.dp)
+                        verticalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
                         items(cells) { cell ->
                             when (cell) {
-                                CalendarCell.Blank -> Box(Modifier.aspectRatio(1f))
+                                CalendarCell.Blank -> Box(Modifier.height(68.dp))
                                 is CalendarCell.Day -> DayCell(
                                     cell = cell,
                                     selected = selectedDay == cell.day,
@@ -243,13 +244,20 @@ private fun DayCell(
     val borderColor = if (selected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outlineVariant
     Column(
         modifier = Modifier
-            .aspectRatio(1f)
-            .border(1.dp, borderColor, RoundedCornerShape(8.dp))
-            .clickable(onClick = onClick)
-            .padding(5.dp),
-        verticalArrangement = Arrangement.spacedBy(2.dp)
+            .height(68.dp)
+            .fillMaxWidth()
+            .clickable(onClick = onClick),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.spacedBy(3.dp)
     ) {
-        Text(cell.day.toString(), fontWeight = FontWeight.Bold)
+        Box(
+            modifier = Modifier
+                .size(30.dp)
+                .border(1.dp, borderColor, RoundedCornerShape(7.dp)),
+            contentAlignment = Alignment.Center
+        ) {
+            Text(cell.day.toString(), fontWeight = FontWeight.Bold)
+        }
         Text(
             if (cell.income > 0L) "+${AmountUtil.format(cell.income)}" else "+￥0.00",
             color = Color(0xFF1F7A4D),
