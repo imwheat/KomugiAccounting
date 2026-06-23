@@ -14,6 +14,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
@@ -34,6 +35,7 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -92,11 +94,33 @@ private fun CategoryListScreen(
     val data by repository.data.collectAsState()
     var message by rememberSaveable { mutableStateOf<String?>(null) }
     val editingNames = remember { mutableStateMapOf<String, String>() }
-    val styleStates = remember { mutableStateMapOf<String, StyleEditState>() }
+    val categoryStyleStates = remember { mutableStateMapOf<String, StyleEditState>() }
+    var editingGroupKey by rememberSaveable { mutableStateOf<String?>(null) }
+    var groupDraft by rememberSaveable { mutableStateOf<GroupEditState?>(null) }
+    var pendingCancelGroupKey by rememberSaveable { mutableStateOf<String?>(null) }
     val grouped = data.categories
         .filter { it.type == selectedType }
         .groupBy { it.groupName.ifBlank { "未分组" } }
         .toSortedMap()
+
+    fun saveGroup(oldGroupName: String, draft: GroupEditState): Boolean {
+        val result = repository.updateCategoryGroup(
+            type = selectedType,
+            oldGroupName = oldGroupName,
+            newGroupName = draft.name,
+            iconName = draft.iconName,
+            color = draft.color,
+            iconImageUri = draft.iconImageUri,
+            enabled = draft.enabled
+        )
+        message = result ?: "分组已保存"
+        if (result == null) {
+            editingGroupKey = null
+            groupDraft = null
+            return true
+        }
+        return false
+    }
 
     LazyColumn(
         modifier = modifier.padding(18.dp),
@@ -122,6 +146,8 @@ private fun CategoryListScreen(
                     onClick = {
                         onSelectedTypeChange(RecordType.EXPENSE)
                         message = null
+                        editingGroupKey = null
+                        groupDraft = null
                     },
                     label = { Text("支出分类") }
                 )
@@ -130,38 +156,62 @@ private fun CategoryListScreen(
                     onClick = {
                         onSelectedTypeChange(RecordType.INCOME)
                         message = null
+                        editingGroupKey = null
+                        groupDraft = null
                     },
                     label = { Text("收入分类") }
                 )
             }
         }
         message?.let {
-            item { Text(it, color = MaterialTheme.colorScheme.error, modifier = Modifier.padding(horizontal = 4.dp)) }
+            item { Text(it, color = if (it.contains("已")) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.error, modifier = Modifier.padding(horizontal = 4.dp)) }
         }
         grouped.forEach { (groupName, groupCategories) ->
             val visibleCategories = groupCategories.filterNot { it.isGroupPlaceholder() }.sortedBy { it.sortOrder }
             val groupMeta = groupCategories.firstOrNull { it.isGroupPlaceholder() } ?: visibleCategories.firstOrNull()
-            item(key = "group-$selectedType-$groupName") {
-                GroupStyleCard(
-                    type = selectedType,
-                    groupName = groupName,
-                    meta = groupMeta,
-                    state = styleStates.getOrPut("group-$selectedType-$groupName") {
-                        StyleEditState(
-                            iconName = groupMeta?.iconName.orEmpty().ifBlank { groupName.firstIconText() },
-                            color = groupMeta?.color ?: defaultColor(selectedType),
-                            iconImageUri = groupMeta?.iconImageUri.orEmpty()
-                        )
-                    },
-                    onStateChange = { styleStates["group-$selectedType-$groupName"] = it },
-                    onSave = { state ->
-                        message = repository.updateCategoryGroupStyle(selectedType, groupName, state.iconName, state.color, state.iconImageUri)
-                    }
-                )
+            val groupEnabled = visibleCategories.ifEmpty { groupCategories }.any { it.enabled }
+            val groupKey = "$selectedType-$groupName"
+            item(key = "group-$groupKey") {
+                if (editingGroupKey == groupKey && groupDraft != null) {
+                    GroupEditCard(
+                        original = GroupEditState.from(groupName, groupMeta, groupEnabled, selectedType),
+                        draft = groupDraft!!,
+                        onDraftChange = { groupDraft = it.copy(iconName = it.iconName.ifBlank { it.name.firstIconText() }) },
+                        onSave = { draft ->
+                            saveGroup(groupName, draft)
+                        },
+                        onCancel = { draft ->
+                            val original = GroupEditState.from(groupName, groupMeta, groupEnabled, selectedType)
+                            if (draft != original) {
+                                pendingCancelGroupKey = groupKey
+                            } else {
+                                editingGroupKey = null
+                                groupDraft = null
+                            }
+                        }
+                    )
+                } else {
+                    GroupInfoCard(
+                        type = selectedType,
+                        groupName = groupName,
+                        meta = groupMeta,
+                        categoryCount = visibleCategories.size,
+                        enabled = groupEnabled,
+                        onEnabledChange = {
+                            repository.setCategoryGroupEnabled(selectedType, groupName, it)
+                            message = null
+                        },
+                        onEdit = {
+                            editingGroupKey = groupKey
+                            groupDraft = GroupEditState.from(groupName, groupMeta, groupEnabled, selectedType)
+                            message = null
+                        }
+                    )
+                }
             }
             items(visibleCategories, key = { it.id }) { category ->
                 val index = visibleCategories.indexOfFirst { it.id == category.id }
-                val state = styleStates.getOrPut(category.id) {
+                val state = categoryStyleStates.getOrPut(category.id) {
                     StyleEditState(
                         iconName = category.iconName.ifBlank { category.name.firstIconText() },
                         color = category.color.ifBlank { defaultColor(selectedType) },
@@ -175,10 +225,11 @@ private fun CategoryListScreen(
                     editName = editingNames.getOrPut(category.id) { category.name },
                     styleState = state,
                     onEditName = { editingNames[category.id] = it },
-                    onStyleChange = { styleStates[category.id] = it },
+                    onStyleChange = { categoryStyleStates[category.id] = it },
                     onSave = {
                         message = repository.updateCategory(category.id, editingNames[category.id].orEmpty())
                             ?: repository.updateCategoryStyle(category.id, state.iconName, state.color, state.iconImageUri)
+                            ?: "分类已保存"
                     },
                     onEnabledChange = {
                         repository.setCategoryEnabled(category.id, it)
@@ -198,6 +249,33 @@ private fun CategoryListScreen(
                 )
             }
         }
+    }
+
+    val pendingKey = pendingCancelGroupKey
+    val draft = groupDraft
+    if (pendingKey != null && draft != null) {
+        AlertDialog(
+            onDismissRequest = { pendingCancelGroupKey = null },
+            title = { Text("应用本次修改？") },
+            text = { Text("分组信息已经修改，是否保存本次修改？") },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        val oldGroupName = pendingKey.substringAfter("-")
+                        if (saveGroup(oldGroupName, draft)) pendingCancelGroupKey = null
+                    }
+                ) { Text("保存") }
+            },
+            dismissButton = {
+                OutlinedButton(
+                    onClick = {
+                        pendingCancelGroupKey = null
+                        editingGroupKey = null
+                        groupDraft = null
+                    }
+                ) { Text("取消修改") }
+            }
+        )
     }
 }
 
@@ -293,36 +371,83 @@ private fun CategoryCreateScreen(
 }
 
 @Composable
-private fun GroupStyleCard(
+private fun GroupInfoCard(
     type: RecordType,
     groupName: String,
     meta: Category?,
-    state: StyleEditState,
-    onStateChange: (StyleEditState) -> Unit,
-    onSave: (StyleEditState) -> Unit
+    categoryCount: Int,
+    enabled: Boolean,
+    onEnabledChange: (Boolean) -> Unit,
+    onEdit: () -> Unit
+) {
+    Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .alpha(if (enabled) 1f else 0.48f)
+                .padding(12.dp),
+            horizontalArrangement = Arrangement.spacedBy(12.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            CategoryIconBadge(
+                name = groupName,
+                iconName = groupName.firstIconText(),
+                color = meta?.color ?: defaultColor(type),
+                iconImageUri = meta?.iconImageUri.orEmpty()
+            )
+            Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(3.dp)) {
+                Text(groupName, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Black)
+                Text("${if (type == RecordType.EXPENSE) "支出" else "收入"}分组 · $categoryCount 个分类", color = MaterialTheme.colorScheme.onSurfaceVariant)
+            }
+            Switch(checked = enabled, onCheckedChange = onEnabledChange)
+            OutlinedButton(onClick = onEdit) { Text("编辑") }
+        }
+    }
+}
+
+@Composable
+private fun GroupEditCard(
+    original: GroupEditState,
+    draft: GroupEditState,
+    onDraftChange: (GroupEditState) -> Unit,
+    onSave: (GroupEditState) -> Unit,
+    onCancel: (GroupEditState) -> Unit
 ) {
     Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)) {
         Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
             Row(horizontalArrangement = Arrangement.spacedBy(12.dp), verticalAlignment = Alignment.CenterVertically) {
                 CategoryIconBadge(
-                    name = groupName,
-                    iconName = state.iconName,
-                    color = state.color,
-                    iconImageUri = state.iconImageUri
+                    name = draft.name,
+                    iconName = draft.name.firstIconText(),
+                    color = draft.color,
+                    iconImageUri = draft.iconImageUri
                 )
                 Column(Modifier.weight(1f)) {
-                    Text(groupName, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Black)
-                    Text(if (type == RecordType.EXPENSE) "支出分组" else "收入分组", color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Text("编辑分组", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Black)
+                    Text("未保存修改离开时会提示是否应用。", color = MaterialTheme.colorScheme.onSurfaceVariant)
                 }
             }
-            StyleEditor(
-                name = groupName,
-                state = state,
-                onStateChange = onStateChange,
-                onSave = { onSave(state) }
+            OutlinedTextField(
+                value = draft.name,
+                onValueChange = { onDraftChange(draft.copy(name = it, iconName = it.firstIconText())) },
+                label = { Text("分组名称") },
+                singleLine = true,
+                modifier = Modifier.fillMaxWidth()
             )
-            if (meta == null) {
-                Text("这个分组还没有分类。", color = MaterialTheme.colorScheme.onSurfaceVariant)
+            StyleEditor(
+                name = draft.name,
+                state = StyleEditState(draft.name.firstIconText(), draft.color, draft.iconImageUri),
+                onStateChange = { onDraftChange(draft.copy(iconName = draft.name.firstIconText(), color = it.color, iconImageUri = it.iconImageUri)) },
+                onSave = { onSave(draft) },
+                showIconText = false
+            )
+            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+                Text(if (draft.enabled) "分组启用" else "分组停用")
+                Switch(checked = draft.enabled, onCheckedChange = { onDraftChange(draft.copy(enabled = it)) })
+            }
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                Button(onClick = { onSave(draft) }) { Text("保存") }
+                OutlinedButton(onClick = { onCancel(draft) }) { Text(if (draft == original) "返回" else "取消") }
             }
         }
     }
@@ -344,7 +469,12 @@ private fun CategoryRow(
     onDelete: () -> Unit
 ) {
     Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)) {
-        Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+        Column(
+            Modifier
+                .alpha(if (category.enabled) 1f else 0.48f)
+                .padding(12.dp),
+            verticalArrangement = Arrangement.spacedBy(10.dp)
+        ) {
             Row(horizontalArrangement = Arrangement.spacedBy(12.dp), verticalAlignment = Alignment.CenterVertically) {
                 CategoryIconBadge(
                     name = editName,
@@ -361,12 +491,7 @@ private fun CategoryRow(
                 OutlinedTextField(value = editName, onValueChange = onEditName, label = { Text("名称") }, singleLine = true, modifier = Modifier.weight(1f))
                 Button(onClick = onSave) { Text("保存") }
             }
-            StyleEditor(
-                name = editName,
-                state = styleState,
-                onStateChange = onStyleChange,
-                onSave = onSave
-            )
+            StyleEditor(name = editName, state = styleState, onStateChange = onStyleChange, onSave = onSave)
             Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
                 Text(if (category.enabled) "记账页显示" else "记账页隐藏")
                 Switch(checked = category.enabled, onCheckedChange = onEnabledChange)
@@ -385,7 +510,8 @@ private fun StyleEditor(
     name: String,
     state: StyleEditState,
     onStateChange: (StyleEditState) -> Unit,
-    onSave: () -> Unit
+    onSave: () -> Unit,
+    showIconText: Boolean = true
 ) {
     val context = LocalContext.current
     val launcher = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri: Uri? ->
@@ -397,13 +523,15 @@ private fun StyleEditor(
     }
     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
-            OutlinedTextField(
-                value = state.iconName,
-                onValueChange = { onStateChange(state.copy(iconName = it)) },
-                label = { Text("图标文字") },
-                singleLine = true,
-                modifier = Modifier.weight(1f)
-            )
+            if (showIconText) {
+                OutlinedTextField(
+                    value = state.iconName,
+                    onValueChange = { onStateChange(state.copy(iconName = it)) },
+                    label = { Text("图标文字") },
+                    singleLine = true,
+                    modifier = Modifier.weight(1f)
+                )
+            }
             OutlinedTextField(
                 value = state.color,
                 onValueChange = { onStateChange(state.copy(color = it)) },
@@ -425,6 +553,25 @@ private data class StyleEditState(
     val color: String,
     val iconImageUri: String
 )
+
+private data class GroupEditState(
+    val name: String,
+    val iconName: String,
+    val color: String,
+    val iconImageUri: String,
+    val enabled: Boolean
+) {
+    companion object {
+        fun from(groupName: String, meta: Category?, enabled: Boolean, type: RecordType): GroupEditState =
+            GroupEditState(
+                name = groupName,
+                iconName = groupName.firstIconText(),
+                color = meta?.color ?: defaultColor(type),
+                iconImageUri = meta?.iconImageUri.orEmpty(),
+                enabled = enabled
+            )
+    }
+}
 
 private fun Category.isGroupPlaceholder(): Boolean = name.startsWith("__group__")
 

@@ -67,6 +67,7 @@ fun AccountingApp(repository: AppDataRepository) {
     var showHomeBottomBar by remember { mutableStateOf(true) }
     var showAutomationBottomBar by remember { mutableStateOf(true) }
     var openAutomationTodoList by remember { mutableStateOf(false) }
+    var automationTodoOpenedFromHome by remember { mutableStateOf(false) }
     val homeViewModel = remember(repository) { HomeViewModel(repository) }
     val addRecordViewModel = remember(repository) { AddRecordViewModel(repository) }
     val detailViewModel = remember(repository) { DetailViewModel(repository) }
@@ -141,6 +142,7 @@ fun AccountingApp(repository: AppDataRepository) {
                     },
                     onOpenTodoList = {
                         openAutomationTodoList = true
+                        automationTodoOpenedFromHome = true
                         navigateTo(Screen.Automation)
                     },
                     onBottomBarVisibleChange = { showHomeBottomBar = it },
@@ -155,7 +157,12 @@ fun AccountingApp(repository: AppDataRepository) {
                     repository = repository,
                     onBottomBarVisibleChange = { showAutomationBottomBar = it },
                     initialTodoList = openAutomationTodoList,
-                    onInitialTodoListConsumed = { openAutomationTodoList = false }
+                    onInitialTodoListConsumed = { openAutomationTodoList = false },
+                    onInitialTodoListBack = {
+                        automationTodoOpenedFromHome = false
+                        navigateBack()
+                    },
+                    initialTodoListBackToPreviousScreen = automationTodoOpenedFromHome
                 )
                 Screen.Add -> AddRecordScreen(
                     viewModel = addRecordViewModel,

@@ -140,6 +140,15 @@ class AppDataRepository private constructor(context: Context) {
         current.copy(categories = current.categories.map { if (it.id == categoryId) it.copy(enabled = enabled) else it })
     }
 
+    fun setCategoryGroupEnabled(type: RecordType, groupName: String, enabled: Boolean) = update { current ->
+        val cleanGroupName = groupName.trim()
+        current.copy(
+            categories = current.categories.map { category ->
+                if (category.type == type && category.groupName == cleanGroupName) category.copy(enabled = enabled) else category
+            }
+        )
+    }
+
     fun deleteCategory(categoryId: String): String? {
         val current = _data.value
         val category = current.categories.firstOrNull { it.id == categoryId } ?: return "分类不存在"
@@ -249,6 +258,47 @@ class AppDataRepository private constructor(context: Context) {
                             iconName = iconName.trim().ifBlank { cleanGroupName.firstIconText() },
                             color = cleanColor,
                             iconImageUri = iconImageUri.trim()
+                        )
+                    } else {
+                        category
+                    }
+                }
+            )
+        }
+        return null
+    }
+
+    fun updateCategoryGroup(
+        type: RecordType,
+        oldGroupName: String,
+        newGroupName: String,
+        iconName: String,
+        color: String,
+        iconImageUri: String,
+        enabled: Boolean
+    ): String? {
+        val cleanOldGroupName = oldGroupName.trim()
+        val cleanNewGroupName = newGroupName.trim()
+        val cleanColor = color.trim()
+        val current = _data.value
+        if (cleanOldGroupName.isEmpty()) return "分组不存在"
+        if (cleanNewGroupName.isEmpty()) return "分组名称不能为空"
+        if (!cleanColor.matches(Regex("^#[0-9a-fA-F]{6}([0-9a-fA-F]{2})?$"))) return "颜色格式应为 #RRGGBB"
+        if (current.categories.none { it.type == type && it.groupName == cleanOldGroupName }) return "分组不存在"
+        if (cleanNewGroupName != cleanOldGroupName && current.categories.any { it.type == type && it.groupName == cleanNewGroupName }) {
+            return "分组已经存在"
+        }
+        update { data ->
+            data.copy(
+                categories = data.categories.map { category ->
+                    if (category.type == type && category.groupName == cleanOldGroupName) {
+                        category.copy(
+                            name = if (category.name.startsWith("__group__")) "__group__$cleanNewGroupName" else category.name,
+                            groupName = cleanNewGroupName,
+                            iconName = iconName.trim().ifBlank { cleanNewGroupName.firstIconText() },
+                            color = cleanColor,
+                            iconImageUri = iconImageUri.trim(),
+                            enabled = enabled
                         )
                     } else {
                         category

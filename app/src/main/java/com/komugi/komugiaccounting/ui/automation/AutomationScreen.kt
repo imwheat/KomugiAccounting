@@ -66,6 +66,8 @@ fun AutomationScreen(
     onBottomBarVisibleChange: (Boolean) -> Unit,
     initialTodoList: Boolean = false,
     onInitialTodoListConsumed: () -> Unit = {},
+    initialTodoListBackToPreviousScreen: Boolean = false,
+    onInitialTodoListBack: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     var page by remember { mutableStateOf<AutomationPage>(AutomationPage.Main) }
@@ -83,7 +85,14 @@ fun AutomationScreen(
     BackHandler(enabled = page != AutomationPage.Main) {
         page = when (val current = page) {
             AutomationPage.Main -> AutomationPage.Main
-            AutomationPage.TodoList -> AutomationPage.Main
+            AutomationPage.TodoList -> {
+                if (initialTodoListBackToPreviousScreen) {
+                    onInitialTodoListBack()
+                    AutomationPage.TodoList
+                } else {
+                    AutomationPage.Main
+                }
+            }
             AutomationPage.AutoBookRules -> AutomationPage.Main
             is AutomationPage.AutoBookEdit -> AutomationPage.AutoBookRules
             is AutomationPage.CategoryPicker -> AutomationPage.RuleEdit(current.type, current.ruleId)
@@ -100,7 +109,13 @@ fun AutomationScreen(
             onOpenTodos = { page = AutomationPage.TodoList },
             modifier = modifier
         )
-        AutomationPage.TodoList -> AutoBookTodoListScreen(repository, onBack = { page = AutomationPage.Main }, modifier)
+        AutomationPage.TodoList -> AutoBookTodoListScreen(
+            repository = repository,
+            onBack = {
+                if (initialTodoListBackToPreviousScreen) onInitialTodoListBack() else page = AutomationPage.Main
+            },
+            modifier = modifier
+        )
         AutomationPage.AutoBookRules -> AutoBookRuleListScreen(
             repository = repository,
             onBack = { page = AutomationPage.Main },
