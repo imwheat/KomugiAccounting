@@ -50,8 +50,10 @@ fun HomeScreen(
     homeViewModel: HomeViewModel,
     detailViewModel: DetailViewModel,
     repository: AppDataRepository,
-    onEditRecord: (String) -> Unit,
+    onEditRecord: (String, Int?) -> Unit,
     onBottomBarVisibleChange: (Boolean) -> Unit,
+    initialPage: Int? = null,
+    onInitialPageConsumed: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     var page by rememberSaveable { mutableIntStateOf(0) }
@@ -61,6 +63,13 @@ fun HomeScreen(
     LaunchedEffect(page) {
         onBottomBarVisibleChange(page == 0)
         if (page == 0) detailBackSignal = 0
+    }
+
+    LaunchedEffect(initialPage) {
+        initialPage?.let {
+            page = it
+            onInitialPageConsumed()
+        }
     }
 
     BackHandler(enabled = page != 0) {
@@ -85,7 +94,7 @@ fun HomeScreen(
             )
             1 -> DetailScreen(
                 viewModel = detailViewModel,
-                onEditRecord = onEditRecord,
+                onEditRecord = { recordId -> onEditRecord(recordId, 1) },
                 filterRequest = detailFilterRequest,
                 onBack = { page = 0 },
                 backSignal = detailBackSignal,
@@ -101,7 +110,7 @@ fun HomeScreen(
             )
             3 -> CalendarScreen(
                 repository = repository,
-                onEditRecord = onEditRecord,
+                onEditRecord = { recordId -> onEditRecord(recordId, 3) },
                 onBack = { page = 0 },
                 modifier = Modifier.swipeRightToBack { page = 0 }
             )
@@ -112,7 +121,7 @@ fun HomeScreen(
 @Composable
 private fun HomeOverviewScreen(
     viewModel: HomeViewModel,
-    onEditRecord: (String) -> Unit,
+    onEditRecord: (String, Int?) -> Unit,
     onOpenPage: (Int) -> Unit,
     onOpenDetail: (DetailFilterRequest) -> Unit,
     modifier: Modifier = Modifier
@@ -228,7 +237,7 @@ private fun HomeOverviewScreen(
                     record = record,
                     category = categories[record.categoryId],
                     member = members[record.memberId],
-                    onClick = { onEditRecord(record.id) }
+                    onClick = { onEditRecord(record.id, 0) }
                 )
             }
         }

@@ -64,24 +64,22 @@ fun CalendarScreen(
     val monthStart = DateTimeUtil.startOfMonth(year, month)
     val daysInMonth = DateTimeUtil.daysInMonth(year, month)
     val leadingBlankCount = DateTimeUtil.dayOfWeekMondayFirst(monthStart) - 1
-    val recordsInMonth = data.records.filter {
-        val monthEnd = DateTimeUtil.endExclusiveFromStart(monthStart, Calendar.MONTH, 1)
-        it.dateTime in monthStart until monthEnd
-    }
+    val monthPrefix = "%04d-%02d".format(year, month + 1)
+    val recordsByDate = data.records
+        .filter { DateTimeUtil.formatDate(it.dateTime).startsWith(monthPrefix) }
+        .groupBy { DateTimeUtil.formatDate(it.dateTime) }
     val cells = List(leadingBlankCount) { CalendarCell.Blank } + (1..daysInMonth).map { day ->
-        val start = DateTimeUtil.endExclusiveFromStart(monthStart, Calendar.DAY_OF_MONTH, day - 1)
-        val end = DateTimeUtil.endExclusiveFromStart(start, Calendar.DAY_OF_MONTH, 1)
-        val dayRecords = recordsInMonth.filter { it.dateTime in start until end }
+        val dayKey = "%04d-%02d-%02d".format(year, month + 1, day)
+        val dayRecords = recordsByDate[dayKey].orEmpty()
         CalendarCell.Day(
             day = day,
             income = dayRecords.sumByType(RecordType.INCOME),
             expense = dayRecords.sumByType(RecordType.EXPENSE)
         )
     }
-    val selectedStart = DateTimeUtil.endExclusiveFromStart(monthStart, Calendar.DAY_OF_MONTH, selectedDay - 1)
-    val selectedEnd = DateTimeUtil.endExclusiveFromStart(selectedStart, Calendar.DAY_OF_MONTH, 1)
+    val selectedDateKey = "%04d-%02d-%02d".format(year, month + 1, selectedDay)
     val selectedRecords = data.records
-        .filter { it.dateTime in selectedStart until selectedEnd }
+        .filter { DateTimeUtil.formatDate(it.dateTime) == selectedDateKey }
         .sortedByDescending { it.dateTime }
     val categories = data.categories.associateBy { it.id }
     val members = data.members.associateBy { it.id }
@@ -170,7 +168,7 @@ fun CalendarScreen(
                     ) {
                         items(cells) { cell ->
                             when (cell) {
-                                CalendarCell.Blank -> Box(Modifier.height(68.dp))
+                                CalendarCell.Blank -> Box(Modifier.height(78.dp))
                                 is CalendarCell.Day -> DayCell(
                                     cell = cell,
                                     selected = selectedDay == cell.day,
@@ -252,7 +250,7 @@ private fun DayCell(
     val borderColor = if (selected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outlineVariant
     Column(
         modifier = Modifier
-            .height(68.dp)
+            .height(78.dp)
             .fillMaxWidth()
             .clickable(onClick = onClick),
         horizontalAlignment = Alignment.CenterHorizontally,

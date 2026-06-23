@@ -97,6 +97,7 @@ fun AccountingApp(repository: AppDataRepository) {
     var currentScreen by remember { mutableStateOf(Screen.Home) }
     var previousScreens by remember { mutableStateOf<List<Screen>>(emptyList()) }
     var editingRecordId by remember { mutableStateOf<String?>(null) }
+    var pendingHomePage by remember { mutableStateOf<Int?>(null) }
     var showHomeBottomBar by remember { mutableStateOf(true) }
     val homeViewModel = remember(repository) { HomeViewModel(repository) }
     val addRecordViewModel = remember(repository) { AddRecordViewModel(repository) }
@@ -161,11 +162,14 @@ fun AccountingApp(repository: AppDataRepository) {
                     homeViewModel = homeViewModel,
                     detailViewModel = detailViewModel,
                     repository = repository,
-                    onEditRecord = { recordId ->
+                    onEditRecord = { recordId, returnHomePage ->
                         editingRecordId = recordId
+                        pendingHomePage = returnHomePage
                         navigateTo(Screen.Add)
                     },
-                    onBottomBarVisibleChange = { showHomeBottomBar = it }
+                    onBottomBarVisibleChange = { showHomeBottomBar = it },
+                    initialPage = pendingHomePage,
+                    onInitialPageConsumed = { pendingHomePage = null }
                 )
                 Screen.Template -> TemplateScreen(
                     repository = repository,
