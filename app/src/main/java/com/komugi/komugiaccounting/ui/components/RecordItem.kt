@@ -41,7 +41,7 @@ fun RecordItem(
             .fillMaxWidth()
             .then(if (onClick == null) Modifier else Modifier.clickable(onClick = onClick)),
         shape = RoundedCornerShape(18.dp),
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
+        colors = CardDefaults.cardColors(containerColor = panelBackgroundColor())
     ) {
         Row(
             modifier = Modifier.padding(14.dp),

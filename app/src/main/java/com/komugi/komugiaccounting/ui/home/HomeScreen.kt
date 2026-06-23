@@ -39,6 +39,7 @@ import com.komugi.komugiaccounting.ui.components.StatCard
 import com.komugi.komugiaccounting.data.repository.AppDataRepository
 import com.komugi.komugiaccounting.ui.calendar.CalendarScreen
 import com.komugi.komugiaccounting.ui.chart.ChartScreen
+import com.komugi.komugiaccounting.ui.components.panelBackgroundColor
 import com.komugi.komugiaccounting.ui.detail.DetailScreen
 import com.komugi.komugiaccounting.ui.detail.DetailFilterRequest
 import com.komugi.komugiaccounting.ui.detail.DetailViewModel
@@ -228,7 +229,7 @@ private fun HomeOverviewScreen(
                 onBalanceClick = { onOpenDetail(yearStatFilter(null)) }
             )
         }
-        item { Text("最近记录", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold) }
+        item { SectionHeader("最近记录") }
         if (data.records.isEmpty()) {
             item { Text("还没有账目，点击底部 + 记第一笔。", color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(12.dp)) }
         } else {
@@ -262,7 +263,8 @@ private fun MonthlyCategorySummaryCard(
 
     Card(
         modifier = modifier.fillMaxWidth(),
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
+        shape = androidx.compose.foundation.shape.RoundedCornerShape(18.dp),
+        colors = CardDefaults.cardColors(containerColor = panelBackgroundColor())
     ) {
         Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
             Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
@@ -289,6 +291,22 @@ private fun MonthlyCategorySummaryCard(
                 }
             }
         }
+    }
+}
+
+@Composable
+private fun SectionHeader(title: String) {
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        shape = androidx.compose.foundation.shape.RoundedCornerShape(18.dp),
+        colors = CardDefaults.cardColors(containerColor = panelBackgroundColor())
+    ) {
+        Text(
+            title,
+            style = MaterialTheme.typography.titleLarge,
+            fontWeight = FontWeight.Bold,
+            modifier = Modifier.padding(14.dp)
+        )
     }
 }
 

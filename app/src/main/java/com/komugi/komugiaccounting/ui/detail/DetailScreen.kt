@@ -49,6 +49,7 @@ import com.komugi.komugiaccounting.data.model.TransactionRecord
 import com.komugi.komugiaccounting.domain.FilterEngine
 import com.komugi.komugiaccounting.domain.StatisticsCalculator
 import com.komugi.komugiaccounting.ui.components.RecordItem
+import com.komugi.komugiaccounting.ui.components.panelBackgroundColor
 import com.komugi.komugiaccounting.util.AmountUtil
 import com.komugi.komugiaccounting.util.DateTimeUtil
 import java.util.Calendar
@@ -380,7 +381,11 @@ private fun Header(title: String, onBack: () -> Unit) {
 
 @Composable
 private fun FilterRow(title: String, value: String, onClick: () -> Unit) {
-    Card(modifier = Modifier.fillMaxWidth().clickable(onClick = onClick), colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)) {
+    Card(
+        modifier = Modifier.fillMaxWidth().clickable(onClick = onClick),
+        shape = androidx.compose.foundation.shape.RoundedCornerShape(18.dp),
+        colors = CardDefaults.cardColors(containerColor = panelBackgroundColor())
+    ) {
         Row(modifier = Modifier.padding(14.dp), horizontalArrangement = Arrangement.SpaceBetween) {
             Text(title, fontWeight = FontWeight.SemiBold)
             Text(value, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f).padding(start = 18.dp))
@@ -527,7 +532,10 @@ private fun Modifier.swipeRight(onBack: () -> Unit): Modifier = pointerInput(Uni
 @Composable
 private fun DayHeader(dayStart: Long, records: List<TransactionRecord>) {
     val stat = StatisticsCalculator.calculate(records, dayStart, DateTimeUtil.endExclusiveFromStart(dayStart, Calendar.DAY_OF_MONTH, 1))
-    Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)) {
+    Card(
+        shape = androidx.compose.foundation.shape.RoundedCornerShape(18.dp),
+        colors = CardDefaults.cardColors(containerColor = panelBackgroundColor())
+    ) {
         Row(
             modifier = Modifier
                 .fillMaxWidth()
