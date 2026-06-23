@@ -52,6 +52,7 @@ fun HomeScreen(
     detailViewModel: DetailViewModel,
     repository: AppDataRepository,
     onEditRecord: (String, Int?) -> Unit,
+    onOpenTodoList: () -> Unit,
     onBottomBarVisibleChange: (Boolean) -> Unit,
     initialPage: Int? = null,
     onInitialPageConsumed: () -> Unit = {},
@@ -82,6 +83,7 @@ fun HomeScreen(
             0 -> HomeOverviewScreen(
                 viewModel = homeViewModel,
                 onEditRecord = onEditRecord,
+                onOpenTodoList = onOpenTodoList,
                 onOpenPage = { targetPage ->
                     if (targetPage == 1) detailFilterRequest = null
                     if (targetPage == 1) detailBackSignal = 0
@@ -123,6 +125,7 @@ fun HomeScreen(
 private fun HomeOverviewScreen(
     viewModel: HomeViewModel,
     onEditRecord: (String, Int?) -> Unit,
+    onOpenTodoList: () -> Unit,
     onOpenPage: (Int) -> Unit,
     onOpenDetail: (DetailFilterRequest) -> Unit,
     modifier: Modifier = Modifier
@@ -151,6 +154,11 @@ private fun HomeOverviewScreen(
                 FilterChip(selected = false, onClick = { onOpenPage(1) }, label = { Text("明细") })
                 FilterChip(selected = false, onClick = { onOpenPage(2) }, label = { Text("图表") })
                 FilterChip(selected = false, onClick = { onOpenPage(3) }, label = { Text("日历") })
+                FilterChip(
+                    selected = false,
+                    onClick = onOpenTodoList,
+                    label = { Text("代办 ${todoBadge(data.autoBookTodos.size)}") }
+                )
             }
         }
         item {
@@ -336,6 +344,8 @@ private data class CategorySummaryItem(
 
 private fun formatPercent(value: Double): String =
     "${(value * 100).coerceAtLeast(0.0).let { "%.1f".format(it) }}%"
+
+private fun todoBadge(count: Int): String = if (count >= 100) "99+" else count.toString()
 
 private fun monthCategoryFilter(monthOffset: Int, type: RecordType, categoryId: String): DetailFilterRequest {
     val start = DateTimeUtil.monthOffsetStart(monthOffset)

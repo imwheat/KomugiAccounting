@@ -66,6 +66,7 @@ fun AccountingApp(repository: AppDataRepository) {
     var pendingHomePage by remember { mutableStateOf<Int?>(null) }
     var showHomeBottomBar by remember { mutableStateOf(true) }
     var showAutomationBottomBar by remember { mutableStateOf(true) }
+    var openAutomationTodoList by remember { mutableStateOf(false) }
     val homeViewModel = remember(repository) { HomeViewModel(repository) }
     val addRecordViewModel = remember(repository) { AddRecordViewModel(repository) }
     val detailViewModel = remember(repository) { DetailViewModel(repository) }
@@ -138,6 +139,10 @@ fun AccountingApp(repository: AppDataRepository) {
                         pendingHomePage = returnHomePage
                         navigateTo(Screen.Add)
                     },
+                    onOpenTodoList = {
+                        openAutomationTodoList = true
+                        navigateTo(Screen.Automation)
+                    },
                     onBottomBarVisibleChange = { showHomeBottomBar = it },
                     initialPage = pendingHomePage,
                     onInitialPageConsumed = { pendingHomePage = null }
@@ -148,7 +153,9 @@ fun AccountingApp(repository: AppDataRepository) {
                 )
                 Screen.Automation -> AutomationScreen(
                     repository = repository,
-                    onBottomBarVisibleChange = { showAutomationBottomBar = it }
+                    onBottomBarVisibleChange = { showAutomationBottomBar = it },
+                    initialTodoList = openAutomationTodoList,
+                    onInitialTodoListConsumed = { openAutomationTodoList = false }
                 )
                 Screen.Add -> AddRecordScreen(
                     viewModel = addRecordViewModel,
