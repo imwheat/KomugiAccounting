@@ -101,6 +101,7 @@ fun HomeScreen(
             )
             3 -> CalendarScreen(
                 repository = repository,
+                onEditRecord = onEditRecord,
                 onBack = { page = 0 },
                 modifier = Modifier.swipeRightToBack { page = 0 }
             )

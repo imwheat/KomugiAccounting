@@ -6,11 +6,13 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.FlowRow
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.text.KeyboardOptions
@@ -300,7 +302,11 @@ private fun DetailMainPage(
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     OutlinedButton(onClick = onToggleSearch) { Text("搜索") }
                     Column {
-                        OutlinedButton(onClick = { onMenuExpandedChange(true) }) { Text("...") }
+                        OutlinedButton(
+                            onClick = { onMenuExpandedChange(true) },
+                            modifier = Modifier.size(width = 52.dp, height = 40.dp),
+                            contentPadding = PaddingValues(0.dp)
+                        ) { Text("...") }
                         DropdownMenu(expanded = menuExpanded, onDismissRequest = { onMenuExpandedChange(false) }) {
                             DropdownMenuItem(text = { Text("批量编辑（后续补充）") }, onClick = { onMenuExpandedChange(false) })
                             DropdownMenuItem(text = { Text("筛选") }, onClick = onOpenFilter)

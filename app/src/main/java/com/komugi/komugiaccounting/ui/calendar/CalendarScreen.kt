@@ -9,7 +9,6 @@ import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
@@ -51,6 +50,7 @@ import java.util.Calendar
 @Composable
 fun CalendarScreen(
     repository: AppDataRepository,
+    onEditRecord: (String) -> Unit,
     onBack: () -> Unit,
     modifier: Modifier = Modifier
 ) {
@@ -64,15 +64,18 @@ fun CalendarScreen(
     val monthStart = DateTimeUtil.startOfMonth(year, month)
     val daysInMonth = DateTimeUtil.daysInMonth(year, month)
     val leadingBlankCount = DateTimeUtil.dayOfWeekMondayFirst(monthStart) - 1
+    val recordsInMonth = data.records.filter {
+        val monthEnd = DateTimeUtil.endExclusiveFromStart(monthStart, Calendar.MONTH, 1)
+        it.dateTime in monthStart until monthEnd
+    }
     val cells = List(leadingBlankCount) { CalendarCell.Blank } + (1..daysInMonth).map { day ->
-        val start = DateTimeUtil.startOfMonth(year, month).let {
-            DateTimeUtil.endExclusiveFromStart(it, Calendar.DAY_OF_MONTH, day - 1)
-        }
+        val start = DateTimeUtil.endExclusiveFromStart(monthStart, Calendar.DAY_OF_MONTH, day - 1)
         val end = DateTimeUtil.endExclusiveFromStart(start, Calendar.DAY_OF_MONTH, 1)
+        val dayRecords = recordsInMonth.filter { it.dateTime in start until end }
         CalendarCell.Day(
             day = day,
-            income = data.records.sumByType(start, end, RecordType.INCOME),
-            expense = data.records.sumByType(start, end, RecordType.EXPENSE)
+            income = dayRecords.sumByType(RecordType.INCOME),
+            expense = dayRecords.sumByType(RecordType.EXPENSE)
         )
     }
     val selectedStart = DateTimeUtil.endExclusiveFromStart(monthStart, Calendar.DAY_OF_MONTH, selectedDay - 1)
@@ -124,7 +127,7 @@ fun CalendarScreen(
         }
         item {
             Text(
-                "${year} 年 ${month + 1} 月",
+                "${year}年${month + 1}月",
                 modifier = Modifier.clickable {
                     pickerYear = year
                     showMonthPicker = !showMonthPicker
@@ -186,7 +189,12 @@ fun CalendarScreen(
             item { Text("这一天没有记录。", color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(12.dp)) }
         } else {
             items(selectedRecords, key = { it.id }) { record ->
-                RecordItem(record, categories[record.categoryId], members[record.memberId])
+                RecordItem(
+                    record = record,
+                    category = categories[record.categoryId],
+                    member = members[record.memberId],
+                    onClick = { onEditRecord(record.id) }
+                )
             }
         }
         item { Spacer(Modifier.height(88.dp)) }
@@ -259,13 +267,13 @@ private fun DayCell(
             Text(cell.day.toString(), fontWeight = FontWeight.Bold)
         }
         Text(
-            if (cell.income > 0L) "+${AmountUtil.format(cell.income)}" else "+￥0.00",
+            AmountUtil.formatPlain(cell.income),
             color = Color(0xFF1F7A4D),
             fontSize = 9.sp,
             maxLines = 1
         )
         Text(
-            if (cell.expense > 0L) "-${AmountUtil.format(cell.expense)}" else "-￥0.00",
+            AmountUtil.formatPlain(cell.expense),
             color = Color(0xFFB3542E),
             fontSize = 9.sp,
             maxLines = 1
@@ -283,5 +291,5 @@ private sealed interface CalendarCell {
     ) : CalendarCell
 }
 
-private fun List<TransactionRecord>.sumByType(start: Long, end: Long, type: RecordType): Long =
-    filter { it.type == type && it.dateTime in start until end }.sumOf { it.effectiveAmount }
+private fun List<TransactionRecord>.sumByType(type: RecordType): Long =
+    filter { it.type == type }.sumOf { it.effectiveAmount }
