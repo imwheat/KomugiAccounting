@@ -213,7 +213,7 @@ private fun TemplateEditScreen(
     var error by rememberSaveable(templateId) { mutableStateOf<String?>(null) }
     var showCategoryPicker by rememberSaveable(templateId) { mutableStateOf(false) }
 
-    val typeCategories = data.categories.filter { it.enabled && it.type == type }.sortedBy { it.sortOrder }
+    val typeCategories = data.categories.filter { it.enabled && it.type == type && !it.name.startsWith("__group__") }.sortedBy { it.sortOrder }
     val selectedCategory = typeCategories.firstOrNull { it.id == categoryId }
     val enabledMembers = data.members.filter { it.enabled }
     if (categoryId.isBlank() || typeCategories.none { it.id == categoryId }) categoryId = typeCategories.firstOrNull()?.id.orEmpty()

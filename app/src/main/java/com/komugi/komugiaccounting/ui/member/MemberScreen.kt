@@ -1,5 +1,6 @@
 package com.komugi.komugiaccounting.ui.member
 
+import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -35,8 +36,36 @@ fun MemberScreen(
     onBack: () -> Unit,
     modifier: Modifier = Modifier
 ) {
+    var isCreating by rememberSaveable { mutableStateOf(false) }
+
+    BackHandler(enabled = isCreating) {
+        isCreating = false
+    }
+
+    if (isCreating) {
+        MemberCreateScreen(
+            repository = repository,
+            onBack = { isCreating = false },
+            modifier = modifier
+        )
+    } else {
+        MemberListScreen(
+            repository = repository,
+            onBack = onBack,
+            onCreate = { isCreating = true },
+            modifier = modifier
+        )
+    }
+}
+
+@Composable
+private fun MemberListScreen(
+    repository: AppDataRepository,
+    onBack: () -> Unit,
+    onCreate: () -> Unit,
+    modifier: Modifier = Modifier
+) {
     val data by repository.data.collectAsState()
-    var newName by rememberSaveable { mutableStateOf("") }
     var message by rememberSaveable { mutableStateOf<String?>(null) }
     val editingNames = remember { mutableStateMapOf<String, String>() }
 
@@ -45,31 +74,16 @@ fun MemberScreen(
         verticalArrangement = Arrangement.spacedBy(12.dp)
     ) {
         item {
-            Row(horizontalArrangement = Arrangement.spacedBy(10.dp), verticalAlignment = Alignment.CenterVertically) {
-                OutlinedButton(onClick = onBack) { Text("<") }
-                Text("成员管理", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Black)
-            }
-        }
-        item {
-            Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)) {
-                Row(
-                    modifier = Modifier.padding(12.dp),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    OutlinedTextField(
-                        value = newName,
-                        onValueChange = { newName = it },
-                        label = { Text("新增成员") },
-                        singleLine = true,
-                        modifier = Modifier.weight(1f)
-                    )
-                    Button(onClick = {
-                        repository.addMember(newName)
-                        newName = ""
-                        message = null
-                    }) { Text("添加") }
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Row(horizontalArrangement = Arrangement.spacedBy(10.dp), verticalAlignment = Alignment.CenterVertically) {
+                    OutlinedButton(onClick = onBack) { Text("<") }
+                    Text("成员管理", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Black)
                 }
+                Button(onClick = onCreate) { Text("新建") }
             }
         }
         message?.let {
@@ -89,8 +103,7 @@ fun MemberScreen(
                             modifier = Modifier.weight(1f)
                         )
                         Button(onClick = {
-                            repository.updateMember(member.id, editName)
-                            message = null
+                            message = repository.updateMember(member.id, editName)
                         }) { Text("保存") }
                     }
                     Row(
@@ -112,6 +125,56 @@ fun MemberScreen(
                             message = repository.deleteMember(member.id) ?: "成员已删除"
                         }) { Text("删除") }
                     }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun MemberCreateScreen(
+    repository: AppDataRepository,
+    onBack: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    var name by rememberSaveable { mutableStateOf("") }
+    var error by rememberSaveable { mutableStateOf<String?>(null) }
+
+    LazyColumn(
+        modifier = modifier.padding(18.dp),
+        verticalArrangement = Arrangement.spacedBy(12.dp)
+    ) {
+        item {
+            Row(horizontalArrangement = Arrangement.spacedBy(10.dp), verticalAlignment = Alignment.CenterVertically) {
+                OutlinedButton(onClick = onBack) { Text("<") }
+                Text("新建成员", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Black)
+            }
+        }
+        item {
+            Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)) {
+                Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                    OutlinedTextField(
+                        value = name,
+                        onValueChange = {
+                            name = it
+                            error = null
+                        },
+                        label = { Text("成员名称") },
+                        singleLine = true,
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                    error?.let { Text(it, color = MaterialTheme.colorScheme.error) }
+                    Button(
+                        modifier = Modifier.fillMaxWidth(),
+                        onClick = {
+                            val result = repository.addMember(name)
+                            if (result == null) {
+                                onBack()
+                            } else {
+                                error = result
+                            }
+                        }
+                    ) { Text("添加") }
                 }
             }
         }

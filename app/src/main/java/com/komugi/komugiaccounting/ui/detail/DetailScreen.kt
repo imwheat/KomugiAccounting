@@ -253,7 +253,7 @@ fun DetailScreen(
             selectedLabel = selectedType?.label() ?: "全部",
             modifier = pageModifier
         )
-        DetailSubPage.CATEGORY -> CategoryFilterPage(data.categories.filter { selectedType == null || it.type == selectedType }, selectedCategoryIds, { selectedCategoryIds = selectedCategoryIds.toggle(it) }, { subPage = DetailSubPage.FILTER }, pageModifier)
+        DetailSubPage.CATEGORY -> CategoryFilterPage(data.categories.filter { !it.name.startsWith("__group__") && (selectedType == null || it.type == selectedType) }, selectedCategoryIds, { selectedCategoryIds = selectedCategoryIds.toggle(it) }, { subPage = DetailSubPage.FILTER }, pageModifier)
         DetailSubPage.MEMBER -> MemberFilterPage(data.members, selectedMemberIds, { selectedMemberIds = selectedMemberIds.toggle(it) }, { subPage = DetailSubPage.FILTER }, pageModifier)
         DetailSubPage.AMOUNT -> AmountFilterPage(minAmount, maxAmount, { minAmount = it }, { maxAmount = it }, { subPage = DetailSubPage.FILTER }, pageModifier)
         DetailSubPage.REMARK -> TextFilterPage("备注", remarkKeyword, { remarkKeyword = it }, { subPage = DetailSubPage.FILTER }, pageModifier)

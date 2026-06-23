@@ -101,7 +101,7 @@ private fun SettingsHomeScreen(
             Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
                 Text("管理", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
                 SettingsEntry("成员管理", "${data.members.count { it.enabled }} 个启用", onOpenMembers)
-                SettingsEntry("分类管理", "${data.categories.count { it.enabled }} 个启用", onOpenCategories)
+                SettingsEntry("分类管理", "${data.categories.count { it.enabled && !it.name.startsWith("__group__") }} 个启用", onOpenCategories)
                 SettingsEntry("模板管理", "${data.templates.size} 个模板", onOpenTemplates)
                 SettingsEntry("导出与备份", "JSON", onOpenExport)
             }

@@ -74,17 +74,28 @@ class JsonFileStorage(private val context: Context) {
             .filterNot { it.isSystem || it.id in legacySystemCategoryIds || it.id in defaultCategoryIds }
         val migratedCategories = DefaultData.categories + customCategories
         return copy(
-            records = records.map { record -> record.copy(categoryId = migrateCategoryId(record.categoryId)) },
+            records = records.map { record ->
+                record.copy(
+                    categoryId = migrateCategoryId(record.categoryId),
+                    memberId = migrateMemberId(record.memberId)
+                )
+            },
             categories = if (categories.isEmpty()) DefaultData.categories else migratedCategories,
             members = if (members.isEmpty()) {
                 DefaultData.members
             } else {
-                members.map { member -> if (member.id in systemMemberIds) member.copy(isSystem = true) else member }
+                DefaultData.members + members.filterNot { it.isSystem || it.id in systemMemberIds || it.id == "mem-company" }
             },
-            templates = templates.map { template -> template.copy(categoryId = migrateCategoryId(template.categoryId)) },
+            templates = templates.map { template ->
+                template.copy(
+                    categoryId = migrateCategoryId(template.categoryId),
+                    memberId = migrateMemberId(template.memberId)
+                )
+            },
             settings = settings.copy(
                 lastExpenseCategoryId = settings.lastExpenseCategoryId?.let(::migrateCategoryId),
                 lastIncomeCategoryId = settings.lastIncomeCategoryId?.let(::migrateCategoryId),
+                lastMemberId = settings.lastMemberId?.let(::migrateMemberId),
                 recentCategoryIds = settings.recentCategoryIds.map(::migrateCategoryId).distinct().take(10)
             )
         )
@@ -241,6 +252,11 @@ class JsonFileStorage(private val context: Context) {
         "cat-refund" -> "cat-income-other"
         "cat-income-other" -> "cat-income-other"
         else -> categoryId
+    }
+
+    private fun migrateMemberId(memberId: String): String = when (memberId) {
+        "mem-company" -> "mem-family"
+        else -> memberId
     }
 
     private fun legacyGroupName(categoryName: String): String = when (categoryName) {

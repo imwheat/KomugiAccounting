@@ -88,7 +88,7 @@ fun AddRecordScreen(
     }
 
     val editingRecord = recordId?.let { id -> data.records.firstOrNull { it.id == id } }
-    val typeCategories = data.categories.filter { it.enabled && it.type == type }.sortedBy { it.sortOrder }
+    val typeCategories = data.categories.filter { it.enabled && it.type == type && !it.name.startsWith("__group__") }.sortedBy { it.sortOrder }
     val selectedCategory = typeCategories.firstOrNull { it.id == selectedCategoryId }
     val members = data.members.filter { it.enabled }
 

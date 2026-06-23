@@ -67,7 +67,22 @@ class AppDataRepository private constructor(context: Context) {
         )
     }
 
-    fun addMember(name: String) = update { current ->
+    fun addMember(name: String): String? {
+        val cleanName = name.trim()
+        val current = _data.value
+        if (cleanName.isEmpty()) return "成员名称不能为空"
+        if (current.members.any { it.name == cleanName }) return "成员已经存在"
+        update { data ->
+            data.copy(members = data.members + Member(
+                id = UUID.randomUUID().toString(),
+                name = cleanName,
+                avatarColor = listOf("#42A5F5", "#EC407A", "#FFCA28", "#66BB6A", "#AB47BC").random()
+            ))
+        }
+        return null
+    }
+
+    fun addMemberLegacy(name: String) = update { current ->
         val cleanName = name.trim()
         if (cleanName.isEmpty() || current.members.any { it.name == cleanName }) return@update current
         current.copy(members = current.members + Member(
@@ -77,21 +92,26 @@ class AppDataRepository private constructor(context: Context) {
         ))
     }
 
-    fun updateMember(memberId: String, name: String, avatarColor: String? = null) = update { current ->
+    fun updateMember(memberId: String, name: String, avatarColor: String? = null): String? {
         val cleanName = name.trim()
-        if (cleanName.isEmpty()) return@update current
-        current.copy(
-            members = current.members.map { member ->
-                if (member.id == memberId) {
-                    member.copy(
-                        name = cleanName,
-                        avatarColor = avatarColor?.takeIf { it.isNotBlank() } ?: member.avatarColor
-                    )
-                } else {
-                    member
+        val current = _data.value
+        if (cleanName.isEmpty()) return "成员名称不能为空"
+        if (current.members.any { it.id != memberId && it.name == cleanName }) return "成员已经存在"
+        update { data ->
+            data.copy(
+                members = data.members.map { member ->
+                    if (member.id == memberId) {
+                        member.copy(
+                            name = cleanName,
+                            avatarColor = avatarColor?.takeIf { it.isNotBlank() } ?: member.avatarColor
+                        )
+                    } else {
+                        member
+                    }
                 }
-            }
-        )
+            )
+        }
+        return null
     }
 
     fun setMemberEnabled(memberId: String, enabled: Boolean) = update { current ->
@@ -122,28 +142,65 @@ class AppDataRepository private constructor(context: Context) {
         return null
     }
 
-    fun addCategory(name: String, type: RecordType) = update { current ->
+    fun addCategory(name: String, type: RecordType): String? = addCategory(name, type, if (type == RecordType.EXPENSE) "其他杂项" else "其他收入")
+
+    fun addCategory(name: String, type: RecordType, groupName: String): String? {
         val cleanName = name.trim()
-        if (cleanName.isEmpty() || current.categories.any { it.type == type && it.name == cleanName }) return@update current
+        val cleanGroupName = groupName.trim()
+        val current = _data.value
+        if (cleanName.isEmpty()) return "分类名称不能为空"
+        if (cleanGroupName.isEmpty()) return "请选择所属分组"
+        if (current.categories.any { it.type == type && it.groupName == cleanGroupName && it.name == cleanName }) return "分类已经存在"
         val nextOrder = (current.categories.filter { it.type == type }.maxOfOrNull { it.sortOrder } ?: 0) + 1
-        current.copy(
-            categories = current.categories + Category(
-                id = UUID.randomUUID().toString(),
-                name = cleanName,
-                type = type,
-                iconName = "MoreHoriz",
-                color = if (type == RecordType.EXPENSE) "#FF7043" else "#66BB6A",
-                sortOrder = nextOrder,
-                groupName = if (type == RecordType.EXPENSE) "其他杂项" else "收入",
-                isSystem = false
+        update { data ->
+            data.copy(
+                categories = data.categories + Category(
+                    id = UUID.randomUUID().toString(),
+                    name = cleanName,
+                    type = type,
+                    iconName = "MoreHoriz",
+                    color = if (type == RecordType.EXPENSE) "#FF7043" else "#66BB6A",
+                    sortOrder = nextOrder,
+                    groupName = cleanGroupName,
+                    isSystem = false
+                )
             )
-        )
+        }
+        return null
     }
 
-    fun updateCategory(categoryId: String, name: String) = update { current ->
+    fun addCategoryGroup(name: String, type: RecordType): String? {
         val cleanName = name.trim()
-        if (cleanName.isEmpty()) return@update current
-        current.copy(categories = current.categories.map { if (it.id == categoryId) it.copy(name = cleanName) else it })
+        val current = _data.value
+        if (cleanName.isEmpty()) return "分组名称不能为空"
+        if (current.categories.any { it.type == type && it.groupName == cleanName }) return "分组已经存在"
+        val nextOrder = (current.categories.filter { it.type == type }.maxOfOrNull { it.sortOrder } ?: 0) + 1
+        update { data ->
+            data.copy(
+                categories = data.categories + Category(
+                    id = UUID.randomUUID().toString(),
+                    name = "__group__$cleanName",
+                    type = type,
+                    iconName = "Folder",
+                    color = if (type == RecordType.EXPENSE) "#FF7043" else "#66BB6A",
+                    sortOrder = nextOrder,
+                    groupName = cleanName,
+                    enabled = false,
+                    isSystem = false
+                )
+            )
+        }
+        return null
+    }
+
+    fun updateCategory(categoryId: String, name: String): String? {
+        val cleanName = name.trim()
+        val current = _data.value
+        val category = current.categories.firstOrNull { it.id == categoryId } ?: return "分类不存在"
+        if (cleanName.isEmpty()) return "分类名称不能为空"
+        if (current.categories.any { it.id != categoryId && it.type == category.type && it.groupName == category.groupName && it.name == cleanName }) return "分类已经存在"
+        update { data -> data.copy(categories = data.categories.map { if (it.id == categoryId) it.copy(name = cleanName) else it }) }
+        return null
     }
 
     fun moveCategory(categoryId: String, direction: Int) = update { current ->
