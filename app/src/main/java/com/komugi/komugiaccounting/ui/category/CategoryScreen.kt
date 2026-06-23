@@ -102,7 +102,7 @@ private fun CategoryListScreen(
 
     fun saveCategory(categoryId: String, draft: CategoryEditState): Boolean {
         val result = repository.updateCategory(categoryId, draft.name)
-            ?: repository.updateCategoryStyle(categoryId, draft.name.firstIconText(), draft.color, draft.iconImageUri)
+            ?: repository.updateCategoryStyle(categoryId, draft.iconName.ifBlank { draft.name.firstIconText() }, draft.color, draft.iconImageUri)
         message = result ?: "分类已保存"
         if (result == null) {
             repository.setCategoryEnabled(categoryId, draft.enabled)
@@ -170,7 +170,7 @@ private fun CategoryListScreen(
                         index = visibleCategories.indexOfFirst { it.id == category.id },
                         lastIndex = visibleCategories.lastIndex,
                         draft = categoryDraft!!,
-                        onDraftChange = { categoryDraft = it.copy(iconName = it.name.firstIconText()) },
+                        onDraftChange = { categoryDraft = it },
                         onSave = { saveCategory(category.id, it) },
                         onCancel = { editingCategoryId = null; categoryDraft = null },
                         onMoveUp = { repository.moveCategory(category.id, -1); message = null },
@@ -308,7 +308,7 @@ private fun GroupEditCard(original: GroupEditState, draft: GroupEditState, onDra
 private fun CategoryInfoCard(category: Category, onEnabledChange: (Boolean) -> Unit, onEdit: () -> Unit) {
     Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)) {
         Row(Modifier.fillMaxWidth().alpha(if (category.enabled) 1f else 0.48f).padding(12.dp), horizontalArrangement = Arrangement.spacedBy(12.dp), verticalAlignment = Alignment.CenterVertically) {
-            CategoryIconBadge(name = category.name, iconName = category.name.firstIconText(), color = category.color, iconImageUri = category.iconImageUri)
+            CategoryIconBadge(category = category)
             Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(3.dp)) {
                 Text(category.name, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
                 Text("分组：${category.groupName.ifBlank { "未分组" }}", color = MaterialTheme.colorScheme.onSurfaceVariant)
@@ -335,14 +335,14 @@ private fun CategoryEditCard(
     Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)) {
         Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
             Row(horizontalArrangement = Arrangement.spacedBy(12.dp), verticalAlignment = Alignment.CenterVertically) {
-                CategoryIconBadge(name = draft.name, iconName = draft.name.firstIconText(), color = draft.color, iconImageUri = draft.iconImageUri)
+                CategoryIconBadge(name = draft.name, iconName = draft.iconName.ifBlank { draft.name.firstIconText() }, color = draft.color, iconImageUri = draft.iconImageUri)
                 Column(Modifier.weight(1f)) {
                     Text("编辑分类", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Black)
                     Text("分组：${category.groupName.ifBlank { "未分组" }}", color = MaterialTheme.colorScheme.onSurfaceVariant)
                 }
             }
-            OutlinedTextField(value = draft.name, onValueChange = { onDraftChange(draft.copy(name = it, iconName = it.firstIconText())) }, label = { Text("分类名称") }, singleLine = true, modifier = Modifier.fillMaxWidth())
-            StyleEditor(name = draft.name, state = StyleEditState(draft.name.firstIconText(), draft.color, draft.iconImageUri), onStateChange = { onDraftChange(draft.copy(iconName = draft.name.firstIconText(), color = it.color, iconImageUri = it.iconImageUri)) }, showIconText = false)
+            OutlinedTextField(value = draft.name, onValueChange = { onDraftChange(draft.copy(name = it)) }, label = { Text("分类名称") }, singleLine = true, modifier = Modifier.fillMaxWidth())
+            StyleEditor(name = draft.name, state = StyleEditState(draft.iconName.ifBlank { draft.name.firstIconText() }, draft.color, draft.iconImageUri), onStateChange = { onDraftChange(draft.copy(iconName = it.iconName, color = it.color, iconImageUri = it.iconImageUri)) }, showIconText = true)
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
                 Text(if (draft.enabled) "记账页显示" else "记账页隐藏")
                 Switch(checked = draft.enabled, onCheckedChange = { onDraftChange(draft.copy(enabled = it)) })

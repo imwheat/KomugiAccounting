@@ -70,7 +70,7 @@ class HomeViewModel(private val repository: AppDataRepository) {
                 val meta = groupMeta(data.categories, type, groupName, categoryIds)
                 GroupStat(
                     groupName = groupName,
-                    iconName = meta?.iconName ?: groupName.firstIconText(),
+                    iconName = groupName.firstIconText(),
                     color = meta?.color ?: if (type == RecordType.EXPENSE) "#FF7043" else "#66BB6A",
                     iconImageUri = meta?.iconImageUri.orEmpty(),
                     categoryIds = categoryIds,

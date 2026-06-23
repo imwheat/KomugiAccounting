@@ -4,8 +4,6 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectHorizontalDragGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.ExperimentalLayoutApi
-import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -24,6 +22,7 @@ import androidx.compose.material3.FilterChip
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -32,8 +31,8 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
-import androidx.compose.ui.Modifier
 import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.text.font.FontWeight
@@ -48,7 +47,9 @@ import com.komugi.komugiaccounting.data.model.SortMode
 import com.komugi.komugiaccounting.data.model.TransactionRecord
 import com.komugi.komugiaccounting.domain.FilterEngine
 import com.komugi.komugiaccounting.domain.StatisticsCalculator
+import com.komugi.komugiaccounting.ui.components.CategoryIconBadge
 import com.komugi.komugiaccounting.ui.components.RecordItem
+import com.komugi.komugiaccounting.ui.components.categoryGroupOrder
 import com.komugi.komugiaccounting.ui.components.panelBackgroundColor
 import com.komugi.komugiaccounting.util.AmountUtil
 import com.komugi.komugiaccounting.util.DateTimeUtil
@@ -62,20 +63,8 @@ data class DetailFilterRequest(
     val endDate: String
 )
 
-private enum class DetailSubPage {
-    MAIN,
-    FILTER,
-    SORT,
-    TIME,
-    TYPE,
-    CATEGORY,
-    MEMBER,
-    AMOUNT,
-    REMARK,
-    REFUND
-}
+private enum class DetailSubPage { MAIN, FILTER, SORT, TIME, TYPE, CATEGORY, MEMBER, AMOUNT, REMARK, REFUND }
 
-@OptIn(ExperimentalLayoutApi::class)
 @Composable
 fun DetailScreen(
     viewModel: DetailViewModel,
@@ -108,11 +97,7 @@ fun DetailScreen(
         return if (subPage == DetailSubPage.MAIN) {
             false
         } else {
-            subPage = if (subPage == DetailSubPage.FILTER || subPage == DetailSubPage.SORT) {
-                DetailSubPage.MAIN
-            } else {
-                DetailSubPage.FILTER
-            }
+            subPage = if (subPage == DetailSubPage.FILTER || subPage == DetailSubPage.SORT) DetailSubPage.MAIN else DetailSubPage.FILTER
             true
         }
     }
@@ -138,12 +123,10 @@ fun DetailScreen(
         }
     }
 
-    val mergedKeyword = listOf(keyword, remarkKeyword).filter(String::isNotBlank).joinToString(" ")
     val minAmountCents = minAmount.takeIf { it.isNotBlank() }?.let { AmountUtil.parseToCents(it) }
     val maxAmountCents = maxAmount.takeIf { it.isNotBlank() }?.let { AmountUtil.parseToCents(it) }
     val startTime = startDate.takeIf { it.isNotBlank() }?.let { DateTimeUtil.parseDate(it) }
-    val endTime = endDate.takeIf { it.isNotBlank() }?.let { DateTimeUtil.parseDate(it) }
-        ?.let { DateTimeUtil.endExclusiveFromStart(it, Calendar.DAY_OF_MONTH, 1) }
+    val endTime = endDate.takeIf { it.isNotBlank() }?.let { DateTimeUtil.parseDate(it) }?.let { DateTimeUtil.endExclusiveFromStart(it, Calendar.DAY_OF_MONTH, 1) }
     val filterError = when {
         minAmount.isNotBlank() && minAmountCents == null -> "最低金额格式不正确"
         maxAmount.isNotBlank() && maxAmountCents == null -> "最高金额格式不正确"
@@ -151,6 +134,7 @@ fun DetailScreen(
         endDate.isNotBlank() && endTime == null -> "结束日期格式应为 yyyy-MM-dd"
         else -> null
     }
+    val mergedKeyword = listOf(keyword, remarkKeyword).filter(String::isNotBlank).joinToString(" ")
     val filterParams = FilterParams(
         type = selectedType,
         categoryIds = selectedCategoryIds,
@@ -164,20 +148,13 @@ fun DetailScreen(
         includeRefunded = includeRefunded
     )
     val filteredRecords = if (filterError == null) {
-        FilterEngine.apply(
-            records = data.records,
-            params = filterParams,
-            categoryNames = categories.mapValues { it.value.name },
-            memberNames = members.mapValues { it.value.name }
-        )
+        FilterEngine.apply(data.records, filterParams, categories.mapValues { it.value.name }, members.mapValues { it.value.name })
     } else {
         emptyList()
     }
-    val pageModifier = modifier.swipeRight {
-        if (!goBackOneLevel()) onBack()
-    }
+    val pageModifier = modifier.swipeRight { if (!goBackOneLevel()) onBack() }
 
-    when (subPage) {
+    when (val page = subPage) {
         DetailSubPage.MAIN -> DetailMainPage(
             filteredRecords = filteredRecords,
             categories = categories,
@@ -191,14 +168,8 @@ fun DetailScreen(
             onMenuExpandedChange = { menuExpanded = it },
             onBack = onBack,
             onEditRecord = onEditRecord,
-            onOpenFilter = {
-                menuExpanded = false
-                subPage = DetailSubPage.FILTER
-            },
-            onOpenSort = {
-                menuExpanded = false
-                subPage = DetailSubPage.SORT
-            },
+            onOpenFilter = { menuExpanded = false; subPage = DetailSubPage.FILTER },
+            onOpenSort = { menuExpanded = false; subPage = DetailSubPage.SORT },
             modifier = pageModifier
         )
         DetailSubPage.FILTER -> FilterListPage(
@@ -211,6 +182,7 @@ fun DetailScreen(
             includeRefunded = includeRefunded,
             onBack = { subPage = DetailSubPage.MAIN },
             onOpen = { subPage = it },
+            onIncludeRefundedChange = { includeRefunded = it },
             onClear = {
                 selectedType = null
                 selectedCategoryIds = emptySet()
@@ -224,53 +196,29 @@ fun DetailScreen(
             },
             modifier = pageModifier
         )
-        DetailSubPage.SORT -> ChoicePage(
-            title = "排序",
-            onBack = { subPage = DetailSubPage.MAIN },
-            options = listOf(
-                "时间降序" to { sortMode = SortMode.TIME_DESC },
-                "时间升序" to { sortMode = SortMode.TIME_ASC },
-                "金额降序" to { sortMode = SortMode.AMOUNT_DESC },
-                "金额升序" to { sortMode = SortMode.AMOUNT_ASC }
-            ),
-            selectedLabel = sortMode.label(),
-            modifier = pageModifier
-        )
+        DetailSubPage.SORT -> ChoicePage("排序", { subPage = DetailSubPage.MAIN }, listOf(
+            "时间降序" to { sortMode = SortMode.TIME_DESC },
+            "时间升序" to { sortMode = SortMode.TIME_ASC },
+            "金额降序" to { sortMode = SortMode.AMOUNT_DESC },
+            "金额升序" to { sortMode = SortMode.AMOUNT_ASC }
+        ), sortMode.label(), pageModifier)
         DetailSubPage.TIME -> TimeFilterPage(startDate, endDate, { startDate = it }, { endDate = it }, { subPage = DetailSubPage.FILTER }, pageModifier)
-        DetailSubPage.TYPE -> ChoicePage(
-            title = "流水类型",
+        DetailSubPage.TYPE -> ChoicePage("流水类型", { subPage = DetailSubPage.FILTER }, listOf(
+            "全部" to { selectedType = null; selectedCategoryIds = emptySet() },
+            "支出" to { selectedType = RecordType.EXPENSE; selectedCategoryIds = emptySet() },
+            "收入" to { selectedType = RecordType.INCOME; selectedCategoryIds = emptySet() }
+        ), selectedType?.label() ?: "全部", pageModifier)
+        DetailSubPage.CATEGORY -> CategoryFilterPage(
+            categories = data.categories.filter { !it.name.startsWith("__group__") && (selectedType == null || it.type == selectedType) },
+            selectedIds = selectedCategoryIds,
+            onSelectedIdsChange = { selectedCategoryIds = it },
             onBack = { subPage = DetailSubPage.FILTER },
-            options = listOf(
-                "全部" to {
-                    selectedType = null
-                    selectedCategoryIds = emptySet()
-                },
-                "支出" to {
-                    selectedType = RecordType.EXPENSE
-                    selectedCategoryIds = emptySet()
-                },
-                "收入" to {
-                    selectedType = RecordType.INCOME
-                    selectedCategoryIds = emptySet()
-                }
-            ),
-            selectedLabel = selectedType?.label() ?: "全部",
             modifier = pageModifier
         )
-        DetailSubPage.CATEGORY -> CategoryFilterPage(data.categories.filter { !it.name.startsWith("__group__") && (selectedType == null || it.type == selectedType) }, selectedCategoryIds, { selectedCategoryIds = selectedCategoryIds.toggle(it) }, { subPage = DetailSubPage.FILTER }, pageModifier)
         DetailSubPage.MEMBER -> MemberFilterPage(data.members, selectedMemberIds, { selectedMemberIds = selectedMemberIds.toggle(it) }, { subPage = DetailSubPage.FILTER }, pageModifier)
         DetailSubPage.AMOUNT -> AmountFilterPage(minAmount, maxAmount, { minAmount = it }, { maxAmount = it }, { subPage = DetailSubPage.FILTER }, pageModifier)
         DetailSubPage.REMARK -> TextFilterPage("备注", remarkKeyword, { remarkKeyword = it }, { subPage = DetailSubPage.FILTER }, pageModifier)
-        DetailSubPage.REFUND -> ChoicePage(
-            title = "退款",
-            onBack = { subPage = DetailSubPage.FILTER },
-            options = listOf(
-                "显示已退款" to { includeRefunded = true },
-                "隐藏已退款" to { includeRefunded = false }
-            ),
-            selectedLabel = if (includeRefunded) "显示已退款" else "隐藏已退款",
-            modifier = pageModifier
-        )
+        DetailSubPage.REFUND -> Unit
     }
 }
 
@@ -297,18 +245,14 @@ private fun DetailMainPage(
         item { Spacer(Modifier.height(10.dp)) }
         item {
             Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                Row(horizontalArrangement = Arrangement.spacedBy(10.dp), verticalAlignment = Alignment.CenterVertically) {
                     OutlinedButton(onClick = onBack) { Text("<") }
                     Text("账目明细", style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Black)
                 }
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     OutlinedButton(onClick = onToggleSearch) { Text("搜索") }
                     Column {
-                        OutlinedButton(
-                            onClick = { onMenuExpandedChange(true) },
-                            modifier = Modifier.size(width = 52.dp, height = 40.dp),
-                            contentPadding = PaddingValues(0.dp)
-                        ) { Text("...") }
+                        OutlinedButton(onClick = { onMenuExpandedChange(true) }, modifier = Modifier.size(width = 52.dp, height = 40.dp), contentPadding = PaddingValues(0.dp)) { Text("...") }
                         DropdownMenu(expanded = menuExpanded, onDismissRequest = { onMenuExpandedChange(false) }) {
                             DropdownMenuItem(text = { Text("批量编辑（后续补充）") }, onClick = { onMenuExpandedChange(false) })
                             DropdownMenuItem(text = { Text("筛选") }, onClick = onOpenFilter)
@@ -319,15 +263,7 @@ private fun DetailMainPage(
             }
         }
         if (searchVisible) {
-            item {
-                OutlinedTextField(
-                    value = keyword,
-                    onValueChange = onKeywordChange,
-                    label = { Text("搜索分类、备注、成员") },
-                    singleLine = true,
-                    modifier = Modifier.fillMaxWidth()
-                )
-            }
+            item { OutlinedTextField(value = keyword, onValueChange = onKeywordChange, label = { Text("搜索分类、备注、成员") }, singleLine = true, modifier = Modifier.fillMaxWidth()) }
         }
         filterError?.let { item { Text(it, color = MaterialTheme.colorScheme.error) } }
         if (filteredRecords.isEmpty()) {
@@ -355,6 +291,7 @@ private fun FilterListPage(
     includeRefunded: Boolean,
     onBack: () -> Unit,
     onOpen: (DetailSubPage) -> Unit,
+    onIncludeRefundedChange: (Boolean) -> Unit,
     onClear: () -> Unit,
     modifier: Modifier = Modifier
 ) {
@@ -363,7 +300,7 @@ private fun FilterListPage(
         item { FilterRow("时间", timeText, onClick = { onOpen(DetailSubPage.TIME) }) }
         item { FilterRow("分类", selectedCategoryText, onClick = { onOpen(DetailSubPage.CATEGORY) }) }
         item { FilterRow("流水类型", selectedType?.label() ?: "全部", onClick = { onOpen(DetailSubPage.TYPE) }) }
-        item { FilterRow("退款", if (includeRefunded) "显示已退款" else "隐藏已退款", onClick = { onOpen(DetailSubPage.REFUND) }) }
+        item { RefundFilterRow(includeRefunded, onIncludeRefundedChange) }
         item { FilterRow("成员", selectedMemberText, onClick = { onOpen(DetailSubPage.MEMBER) }) }
         item { FilterRow("金额", amountText, onClick = { onOpen(DetailSubPage.AMOUNT) }) }
         item { FilterRow("备注", remarkKeyword.ifBlank { "不限" }, onClick = { onOpen(DetailSubPage.REMARK) }) }
@@ -374,7 +311,7 @@ private fun FilterListPage(
 
 @Composable
 private fun Header(title: String, onBack: () -> Unit) {
-    Row(horizontalArrangement = Arrangement.spacedBy(10.dp), modifier = Modifier.padding(top = 10.dp)) {
+    Row(horizontalArrangement = Arrangement.spacedBy(10.dp), verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(top = 10.dp)) {
         OutlinedButton(onClick = onBack) { Text("<") }
         Text(title, style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Black)
     }
@@ -382,14 +319,23 @@ private fun Header(title: String, onBack: () -> Unit) {
 
 @Composable
 private fun FilterRow(title: String, value: String, onClick: () -> Unit) {
-    Card(
-        modifier = Modifier.fillMaxWidth().clickable(onClick = onClick),
-        shape = androidx.compose.foundation.shape.RoundedCornerShape(18.dp),
-        colors = CardDefaults.cardColors(containerColor = panelBackgroundColor())
-    ) {
-        Row(modifier = Modifier.padding(14.dp), horizontalArrangement = Arrangement.SpaceBetween) {
+    Card(modifier = Modifier.fillMaxWidth().clickable(onClick = onClick), shape = androidx.compose.foundation.shape.RoundedCornerShape(18.dp), colors = CardDefaults.cardColors(containerColor = panelBackgroundColor())) {
+        Row(modifier = Modifier.padding(14.dp), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
             Text(title, fontWeight = FontWeight.SemiBold)
             Text(value, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f).padding(start = 18.dp))
+        }
+    }
+}
+
+@Composable
+private fun RefundFilterRow(includeRefunded: Boolean, onIncludeRefundedChange: (Boolean) -> Unit) {
+    Card(shape = androidx.compose.foundation.shape.RoundedCornerShape(18.dp), colors = CardDefaults.cardColors(containerColor = panelBackgroundColor())) {
+        Row(modifier = Modifier.fillMaxWidth().padding(14.dp), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+            Column {
+                Text("退款", fontWeight = FontWeight.SemiBold)
+                Text(if (includeRefunded) "显示已退款" else "隐藏已退款", color = MaterialTheme.colorScheme.onSurfaceVariant)
+            }
+            Switch(checked = includeRefunded, onCheckedChange = onIncludeRefundedChange)
         }
     }
 }
@@ -421,32 +367,64 @@ private fun TimeFilterPage(startDate: String, endDate: String, onStartDateChange
     }
 }
 
-@OptIn(ExperimentalLayoutApi::class)
 @Composable
-private fun CategoryFilterPage(categories: List<Category>, selectedIds: Set<String>, onToggle: (String) -> Unit, onBack: () -> Unit, modifier: Modifier = Modifier) {
+private fun CategoryFilterPage(categories: List<Category>, selectedIds: Set<String>, onSelectedIdsChange: (Set<String>) -> Unit, onBack: () -> Unit, modifier: Modifier = Modifier) {
+    val grouped = categories.groupBy { it.groupName.ifBlank { "未分组" } }.toSortedMap(compareBy { categoryGroupOrder(it) })
     LazyColumn(modifier = modifier.padding(horizontal = 18.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
         item { Header("分类", onBack) }
-        item {
-            FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                categories.sortedBy { it.sortOrder }.forEach { category ->
-                    FilterChip(selected = category.id in selectedIds, onClick = { onToggle(category.id) }, label = { Text(category.name) })
-                }
+        grouped.forEach { (groupName, groupCategories) ->
+            item(key = "group-$groupName") {
+                val ids = groupCategories.map { it.id }.toSet()
+                val allSelected = ids.isNotEmpty() && ids.all { it in selectedIds }
+                CategoryGroupSwitchRow(
+                    title = groupName,
+                    category = groupCategories.firstOrNull(),
+                    checked = allSelected,
+                    onCheckedChange = { checked -> onSelectedIdsChange(if (checked) selectedIds + ids else selectedIds - ids) }
+                )
+            }
+            items(groupCategories.sortedBy { it.sortOrder }, key = { it.id }) { category ->
+                CategorySwitchRow(
+                    category = category,
+                    checked = category.id in selectedIds,
+                    onCheckedChange = { checked -> onSelectedIdsChange(if (checked) selectedIds + category.id else selectedIds - category.id) }
+                )
             }
         }
     }
 }
 
-@OptIn(ExperimentalLayoutApi::class)
+@Composable
+private fun CategoryGroupSwitchRow(title: String, category: Category?, checked: Boolean, onCheckedChange: (Boolean) -> Unit) {
+    Card(colors = CardDefaults.cardColors(containerColor = panelBackgroundColor())) {
+        Row(modifier = Modifier.fillMaxWidth().padding(12.dp), horizontalArrangement = Arrangement.spacedBy(12.dp), verticalAlignment = Alignment.CenterVertically) {
+            if (category != null) CategoryIconBadge(name = title, iconName = title.firstIconText(), color = category.color, iconImageUri = category.iconImageUri, size = 40.dp)
+            Column(Modifier.weight(1f)) {
+                Text(title, fontWeight = FontWeight.Black)
+                Text("选择整个分组", color = MaterialTheme.colorScheme.onSurfaceVariant)
+            }
+            Switch(checked = checked, onCheckedChange = onCheckedChange)
+        }
+    }
+}
+
+@Composable
+private fun CategorySwitchRow(category: Category, checked: Boolean, onCheckedChange: (Boolean) -> Unit) {
+    Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)) {
+        Row(modifier = Modifier.fillMaxWidth().padding(12.dp), horizontalArrangement = Arrangement.spacedBy(12.dp), verticalAlignment = Alignment.CenterVertically) {
+            CategoryIconBadge(category = category, size = 40.dp)
+            Text(category.name, modifier = Modifier.weight(1f), fontWeight = FontWeight.SemiBold)
+            Switch(checked = checked, onCheckedChange = onCheckedChange)
+        }
+    }
+}
+
 @Composable
 private fun MemberFilterPage(members: List<Member>, selectedIds: Set<String>, onToggle: (String) -> Unit, onBack: () -> Unit, modifier: Modifier = Modifier) {
     LazyColumn(modifier = modifier.padding(horizontal = 18.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
         item { Header("成员", onBack) }
-        item {
-            FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                members.forEach { member ->
-                    FilterChip(selected = member.id in selectedIds, onClick = { onToggle(member.id) }, label = { Text(member.name) })
-                }
-            }
+        items(members, key = { it.id }) { member ->
+            FilterChip(selected = member.id in selectedIds, onClick = { onToggle(member.id) }, label = { Text(member.name) })
         }
     }
 }
@@ -479,11 +457,12 @@ private fun SortMode.label(): String = when (this) {
 
 private fun categorySummary(selectedIds: Set<String>, categories: List<Category>): String {
     if (selectedIds.isEmpty()) return "全部"
-    val selected = categories.filter { it.id in selectedIds }
-    val groupNames = selected.groupBy { it.groupName }.filter { (_, list) ->
-        categories.filter { it.groupName == list.first().groupName }.all { it.id in selectedIds }
-    }.keys.filter { it.isNotBlank() }
-    return if (groupNames.isNotEmpty()) groupNames.joinToString("、") else selected.joinToString("、") { it.name }
+    val selectableCategories = categories.filterNot { it.name.startsWith("__group__") }
+    val selected = selectableCategories.filter { it.id in selectedIds }
+    val selectedGroupNames = selected.groupBy { it.groupName }.filter { (groupName, list) ->
+        groupName.isNotBlank() && selectableCategories.filter { it.groupName == groupName }.all { it.id in selectedIds }
+    }.keys
+    return if (selectedGroupNames.isNotEmpty()) selectedGroupNames.joinToString("、") else selected.joinToString("、") { it.name }
 }
 
 private fun memberSummary(selectedIds: Set<String>, members: List<Member>): String =
@@ -533,17 +512,8 @@ private fun Modifier.swipeRight(onBack: () -> Unit): Modifier = pointerInput(Uni
 @Composable
 private fun DayHeader(dayStart: Long, records: List<TransactionRecord>) {
     val stat = StatisticsCalculator.calculate(records, dayStart, DateTimeUtil.endExclusiveFromStart(dayStart, Calendar.DAY_OF_MONTH, 1))
-    Card(
-        shape = androidx.compose.foundation.shape.RoundedCornerShape(18.dp),
-        colors = CardDefaults.cardColors(containerColor = panelBackgroundColor())
-    ) {
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(12.dp),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically
-        ) {
+    Card(shape = androidx.compose.foundation.shape.RoundedCornerShape(18.dp), colors = CardDefaults.cardColors(containerColor = panelBackgroundColor())) {
+        Row(modifier = Modifier.fillMaxWidth().padding(12.dp), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
             Text(DateTimeUtil.formatDate(dayStart), fontWeight = FontWeight.Bold)
             Column(horizontalAlignment = Alignment.End, verticalArrangement = Arrangement.spacedBy(4.dp)) {
                 Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
@@ -555,3 +525,5 @@ private fun DayHeader(dayStart: Long, records: List<TransactionRecord>) {
         }
     }
 }
+
+private fun String.firstIconText(): String = trim().firstOrNull()?.toString().orEmpty()
