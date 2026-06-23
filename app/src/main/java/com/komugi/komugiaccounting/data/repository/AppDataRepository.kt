@@ -250,21 +250,7 @@ class AppDataRepository private constructor(context: Context) {
         if (!cleanColor.matches(Regex("^#[0-9a-fA-F]{6}([0-9a-fA-F]{2})?$"))) return "颜色格式应为 #RRGGBB"
         val current = _data.value
         if (current.categories.none { it.type == type && it.groupName == cleanGroupName }) return "分组不存在"
-        update { data ->
-            data.copy(
-                categories = data.categories.map { category ->
-                    if (category.type == type && category.groupName == cleanGroupName) {
-                        category.copy(
-                            iconName = iconName.trim().ifBlank { cleanGroupName.firstIconText() },
-                            color = cleanColor,
-                            iconImageUri = iconImageUri.trim()
-                        )
-                    } else {
-                        category
-                    }
-                }
-            )
-        }
+        update { data -> data.copy(categories = data.categories.upsertGroupMeta(type, cleanGroupName, iconName, cleanColor, iconImageUri, null, cleanGroupName)) }
         return null
     }
 
@@ -289,22 +275,18 @@ class AppDataRepository private constructor(context: Context) {
             return "分组已经存在"
         }
         update { data ->
-            data.copy(
-                categories = data.categories.map { category ->
-                    if (category.type == type && category.groupName == cleanOldGroupName) {
-                        category.copy(
-                            name = if (category.name.startsWith("__group__")) "__group__$cleanNewGroupName" else category.name,
-                            groupName = cleanNewGroupName,
-                            iconName = iconName.trim().ifBlank { cleanNewGroupName.firstIconText() },
-                            color = cleanColor,
-                            iconImageUri = iconImageUri.trim(),
-                            enabled = enabled
-                        )
-                    } else {
-                        category
-                    }
+            val renamed = data.categories.map { category ->
+                if (category.type == type && category.groupName == cleanOldGroupName) {
+                    category.copy(
+                        name = if (category.name.startsWith("__group__")) "__group__$cleanNewGroupName" else category.name,
+                        groupName = cleanNewGroupName,
+                        enabled = if (category.name.startsWith("__group__")) category.enabled else enabled
+                    )
+                } else {
+                    category
                 }
-            )
+            }
+            data.copy(categories = renamed.upsertGroupMeta(type, cleanNewGroupName, iconName, cleanColor, iconImageUri, enabled = false, oldGroupName = cleanOldGroupName))
         }
         return null
     }
@@ -654,6 +636,51 @@ class AppDataRepository private constructor(context: Context) {
 
     private fun Category.displayNameForIcon(): String =
         if (name.startsWith("__group__")) groupName else name
+
+    private fun List<Category>.upsertGroupMeta(
+        type: RecordType,
+        groupName: String,
+        iconName: String,
+        color: String,
+        iconImageUri: String,
+        enabled: Boolean?,
+        oldGroupName: String
+    ): List<Category> {
+        val cleanIconName = iconName.trim().ifBlank { groupName.firstIconText() }
+        val cleanIconImageUri = iconImageUri.trim()
+        val index = indexOfFirst { it.type == type && it.groupName == groupName && it.name.startsWith("__group__") }
+            .takeIf { it >= 0 }
+            ?: indexOfFirst { it.type == type && it.groupName == oldGroupName && it.name.startsWith("__group__") }.takeIf { it >= 0 }
+        if (index != null) {
+            return mapIndexed { currentIndex, category ->
+                if (currentIndex == index) {
+                    category.copy(
+                        name = "__group__$groupName",
+                        groupName = groupName,
+                        iconName = cleanIconName,
+                        color = color,
+                        iconImageUri = cleanIconImageUri,
+                        enabled = enabled ?: category.enabled
+                    )
+                } else {
+                    category
+                }
+            }
+        }
+        val nextOrder = (filter { it.type == type }.maxOfOrNull { it.sortOrder } ?: 0) + 1
+        return this + Category(
+            id = UUID.randomUUID().toString(),
+            name = "__group__$groupName",
+            type = type,
+            iconName = cleanIconName,
+            color = color,
+            sortOrder = nextOrder,
+            groupName = groupName,
+            enabled = enabled ?: false,
+            isSystem = false,
+            iconImageUri = cleanIconImageUri
+        )
+    }
 
     private fun AppData.exportRecords(startTime: Long?, endTime: Long?): List<TransactionRecord> =
         records.asSequence()

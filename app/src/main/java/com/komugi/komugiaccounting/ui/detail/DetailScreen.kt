@@ -378,7 +378,7 @@ private fun CategoryFilterPage(categories: List<Category>, selectedIds: Set<Stri
                 val allSelected = ids.isNotEmpty() && ids.all { it in selectedIds }
                 CategoryGroupSwitchRow(
                     title = groupName,
-                    category = groupCategories.firstOrNull(),
+                    category = categories.firstOrNull { it.groupName == groupName && it.name.startsWith("__group__") },
                     checked = allSelected,
                     onCheckedChange = { checked -> onSelectedIdsChange(if (checked) selectedIds + ids else selectedIds - ids) }
                 )
