@@ -143,7 +143,7 @@ fun ExportScreen(
 
     Column(modifier = modifier.padding(18.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
         Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-            OutlinedButton(onClick = onBack) { Text("返回") }
+            OutlinedButton(onClick = onBack) { Text("<") }
             Text("导出与备份", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Black)
         }
         Card(

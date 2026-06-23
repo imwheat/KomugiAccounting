@@ -52,8 +52,8 @@ import com.komugi.komugiaccounting.util.DateTimeUtil
 import java.util.Calendar
 
 data class DetailFilterRequest(
-    val type: RecordType,
-    val categoryId: String,
+    val type: RecordType?,
+    val categoryId: String? = null,
     val startDate: String,
     val endDate: String
 )
@@ -120,7 +120,7 @@ fun DetailScreen(
     LaunchedEffect(filterRequest) {
         filterRequest?.let { request ->
             selectedType = request.type
-            selectedCategoryIds = setOf(request.categoryId)
+            selectedCategoryIds = request.categoryId?.let { setOf(it) } ?: emptySet()
             selectedMemberIds = emptySet()
             keyword = ""
             remarkKeyword = ""

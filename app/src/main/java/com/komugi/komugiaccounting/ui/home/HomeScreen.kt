@@ -77,7 +77,7 @@ fun HomeScreen(
                     if (targetPage == 1) detailBackSignal = 0
                     page = targetPage
                 },
-                onOpenCategoryDetail = { request ->
+                onOpenDetail = { request ->
                     detailFilterRequest = request
                     detailBackSignal = 0
                     page = 1
@@ -113,7 +113,7 @@ private fun HomeOverviewScreen(
     viewModel: HomeViewModel,
     onEditRecord: (String) -> Unit,
     onOpenPage: (Int) -> Unit,
-    onOpenCategoryDetail: (DetailFilterRequest) -> Unit,
+    onOpenDetail: (DetailFilterRequest) -> Unit,
     modifier: Modifier = Modifier
 ) {
     val data by viewModel.data.collectAsState()
@@ -148,7 +148,15 @@ private fun HomeOverviewScreen(
                 FilterChip(selected = monthOffset == -1, onClick = { monthOffset = -1 }, label = { Text("上月") })
             }
         }
-        item { StatCard(viewModel.monthTitle(monthOffset), viewModel.monthStat(data, monthOffset)) }
+        item {
+            StatCard(
+                title = viewModel.monthTitle(monthOffset),
+                stat = viewModel.monthStat(data, monthOffset),
+                onExpenseClick = { onOpenDetail(monthStatFilter(monthOffset, RecordType.EXPENSE)) },
+                onIncomeClick = { onOpenDetail(monthStatFilter(monthOffset, RecordType.INCOME)) },
+                onBalanceClick = { onOpenDetail(monthStatFilter(monthOffset, null)) }
+            )
+        }
         item {
             MonthlyCategorySummaryCard(
                 title = "本月支出统计",
@@ -162,7 +170,7 @@ private fun HomeOverviewScreen(
                 expanded = expenseExpanded,
                 onExpandedChange = { expenseExpanded = it },
                 onCategoryClick = { categoryId ->
-                    onOpenCategoryDetail(monthCategoryFilter(monthOffset, RecordType.EXPENSE, categoryId))
+                    onOpenDetail(monthCategoryFilter(monthOffset, RecordType.EXPENSE, categoryId))
                 }
             )
         }
@@ -179,13 +187,37 @@ private fun HomeOverviewScreen(
                 expanded = incomeExpanded,
                 onExpandedChange = { incomeExpanded = it },
                 onCategoryClick = { categoryId ->
-                    onOpenCategoryDetail(monthCategoryFilter(monthOffset, RecordType.INCOME, categoryId))
+                    onOpenDetail(monthCategoryFilter(monthOffset, RecordType.INCOME, categoryId))
                 }
             )
         }
-        item { StatCard("今日统计", viewModel.todayStat(data)) }
-        item { StatCard("本周统计", viewModel.weekStat(data)) }
-        item { StatCard("本年统计", viewModel.yearStat(data)) }
+        item {
+            StatCard(
+                title = "今日统计",
+                stat = viewModel.todayStat(data),
+                onExpenseClick = { onOpenDetail(dayStatFilter(RecordType.EXPENSE)) },
+                onIncomeClick = { onOpenDetail(dayStatFilter(RecordType.INCOME)) },
+                onBalanceClick = { onOpenDetail(dayStatFilter(null)) }
+            )
+        }
+        item {
+            StatCard(
+                title = "本周统计",
+                stat = viewModel.weekStat(data),
+                onExpenseClick = { onOpenDetail(weekStatFilter(RecordType.EXPENSE)) },
+                onIncomeClick = { onOpenDetail(weekStatFilter(RecordType.INCOME)) },
+                onBalanceClick = { onOpenDetail(weekStatFilter(null)) }
+            )
+        }
+        item {
+            StatCard(
+                title = "本年统计",
+                stat = viewModel.yearStat(data),
+                onExpenseClick = { onOpenDetail(yearStatFilter(RecordType.EXPENSE)) },
+                onIncomeClick = { onOpenDetail(yearStatFilter(RecordType.INCOME)) },
+                onBalanceClick = { onOpenDetail(yearStatFilter(null)) }
+            )
+        }
         item { Text("最近记录", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold) }
         if (data.records.isEmpty()) {
             item { Text("还没有账目，点击底部 + 记第一笔。", color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(12.dp)) }
@@ -287,6 +319,37 @@ private fun monthCategoryFilter(monthOffset: Int, type: RecordType, categoryId: 
         endDate = DateTimeUtil.formatDate(endInclusive)
     )
 }
+
+private fun monthStatFilter(monthOffset: Int, type: RecordType?): DetailFilterRequest {
+    val start = DateTimeUtil.monthOffsetStart(monthOffset)
+    val endExclusive = DateTimeUtil.endExclusiveFromStart(start, java.util.Calendar.MONTH, 1)
+    return dateRangeFilter(start, endExclusive, type)
+}
+
+private fun dayStatFilter(type: RecordType?): DetailFilterRequest {
+    val start = DateTimeUtil.startOfDay()
+    val endExclusive = DateTimeUtil.endExclusiveFromStart(start, java.util.Calendar.DAY_OF_YEAR, 1)
+    return dateRangeFilter(start, endExclusive, type)
+}
+
+private fun weekStatFilter(type: RecordType?): DetailFilterRequest {
+    val start = DateTimeUtil.startOfWeek()
+    val endExclusive = DateTimeUtil.endExclusiveFromStart(start, java.util.Calendar.DAY_OF_YEAR, 7)
+    return dateRangeFilter(start, endExclusive, type)
+}
+
+private fun yearStatFilter(type: RecordType?): DetailFilterRequest {
+    val start = DateTimeUtil.startOfYear()
+    val endExclusive = DateTimeUtil.endExclusiveFromStart(start, java.util.Calendar.YEAR, 1)
+    return dateRangeFilter(start, endExclusive, type)
+}
+
+private fun dateRangeFilter(start: Long, endExclusive: Long, type: RecordType?): DetailFilterRequest =
+    DetailFilterRequest(
+        type = type,
+        startDate = DateTimeUtil.formatDate(start),
+        endDate = DateTimeUtil.formatDate(endExclusive - 1)
+    )
 
 private fun Modifier.swipeRightToBack(onBack: () -> Unit): Modifier = pointerInput(Unit) {
     var totalDrag = 0f

@@ -26,11 +26,11 @@ import com.komugi.komugiaccounting.data.repository.AppDataRepository
 import com.komugi.komugiaccounting.ui.category.CategoryScreen
 import com.komugi.komugiaccounting.ui.export.ExportScreen
 import com.komugi.komugiaccounting.ui.member.MemberScreen
-import com.komugi.komugiaccounting.ui.template.TemplateScreen
 
 @Composable
 fun SettingsScreen(
     repository: AppDataRepository,
+    onOpenTemplates: () -> Unit,
     modifier: Modifier = Modifier
 ) {
     var page by rememberSaveable { mutableStateOf(SettingsPage.Main) }
@@ -44,13 +44,12 @@ fun SettingsScreen(
             repository = repository,
             onOpenMembers = { page = SettingsPage.Members },
             onOpenCategories = { page = SettingsPage.Categories },
-            onOpenTemplates = { page = SettingsPage.Templates },
+            onOpenTemplates = onOpenTemplates,
             onOpenExport = { page = SettingsPage.Export },
             modifier = modifier
         )
         SettingsPage.Members -> MemberScreen(repository = repository, onBack = { page = SettingsPage.Main }, modifier = modifier)
         SettingsPage.Categories -> CategoryScreen(repository = repository, onBack = { page = SettingsPage.Main }, modifier = modifier)
-        SettingsPage.Templates -> TemplateScreen(repository = repository, onBack = { page = SettingsPage.Main }, modifier = modifier)
         SettingsPage.Export -> ExportScreen(repository = repository, onBack = { page = SettingsPage.Main }, modifier = modifier)
     }
 }
@@ -144,6 +143,5 @@ private enum class SettingsPage {
     Main,
     Members,
     Categories,
-    Templates,
     Export
 }

@@ -151,7 +151,10 @@ fun AccountingApp(repository: AppDataRepository) {
                     onBack = ::navigateBack,
                     recordId = editingRecordId
                 )
-                Screen.Settings -> SettingsScreen(repository = repository)
+                Screen.Settings -> SettingsScreen(
+                    repository = repository,
+                    onOpenTemplates = { navigateTo(Screen.Template) }
+                )
             }
         }
     }

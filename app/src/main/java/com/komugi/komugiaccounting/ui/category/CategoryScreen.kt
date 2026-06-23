@@ -53,7 +53,7 @@ fun CategoryScreen(
     ) {
         item {
             Row(horizontalArrangement = Arrangement.spacedBy(10.dp), verticalAlignment = Alignment.CenterVertically) {
-                OutlinedButton(onClick = onBack) { Text("返回") }
+                OutlinedButton(onClick = onBack) { Text("<") }
                 Text("分类管理", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Black)
             }
         }
