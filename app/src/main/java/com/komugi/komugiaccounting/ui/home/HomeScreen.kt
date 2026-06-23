@@ -67,6 +67,7 @@ fun HomeScreen(
     var page by rememberSaveable { mutableIntStateOf(0) }
     var detailFilterRequest by remember { mutableStateOf<DetailFilterRequest?>(null) }
     var detailBackSignal by remember { mutableIntStateOf(0) }
+    var detailReturnPage by rememberSaveable { mutableIntStateOf(0) }
 
     LaunchedEffect(page) {
         onBottomBarVisibleChange(page == 0)
@@ -84,6 +85,13 @@ fun HomeScreen(
         if (page == 1) detailBackSignal += 1 else page = 0
     }
 
+    fun openDetail(request: DetailFilterRequest?, returnPage: Int) {
+        detailFilterRequest = request
+        detailBackSignal = 0
+        detailReturnPage = returnPage
+        page = 1
+    }
+
     Column(modifier = modifier) {
         when (page) {
             0 -> HomeOverviewScreen(
@@ -91,30 +99,31 @@ fun HomeScreen(
                 onEditRecord = onEditRecord,
                 onOpenTodoList = onOpenTodoList,
                 onOpenPage = { targetPage ->
-                    if (targetPage == 1) detailFilterRequest = null
-                    if (targetPage == 1) detailBackSignal = 0
-                    page = targetPage
+                    if (targetPage == 1) {
+                        openDetail(null, 0)
+                    } else {
+                        page = targetPage
+                    }
                 },
                 onOpenDetail = { request ->
-                    detailFilterRequest = request
-                    detailBackSignal = 0
-                    page = 1
+                    openDetail(request, 0)
                 }
             )
             1 -> DetailScreen(
                 viewModel = detailViewModel,
                 onEditRecord = { recordId -> onEditRecord(recordId, 1) },
                 filterRequest = detailFilterRequest,
-                onBack = { page = 0 },
+                onBack = { page = detailReturnPage },
                 backSignal = detailBackSignal,
                 onBackSignalConsumed = { consumed ->
-                    if (!consumed) page = 0
+                    if (!consumed) page = detailReturnPage
                 },
                 modifier = Modifier
             )
             2 -> ChartScreen(
                 repository = repository,
                 onBack = { page = 0 },
+                onOpenDetail = { request -> openDetail(request, 2) },
                 modifier = Modifier.swipeRightToBack { page = 0 }
             )
             3 -> CalendarScreen(
