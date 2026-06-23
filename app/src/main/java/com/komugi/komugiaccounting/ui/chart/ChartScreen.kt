@@ -28,6 +28,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import com.komugi.komugiaccounting.data.model.RecordType
 import com.komugi.komugiaccounting.data.model.TransactionRecord
 import com.komugi.komugiaccounting.data.repository.AppDataRepository
@@ -54,9 +55,8 @@ fun ChartScreen(
     }
     val totalIncome = monthStats.sumOf { it.income }
     val totalExpense = monthStats.sumOf { it.expense }
+    val balance = totalIncome - totalExpense
     val maxValue = monthStats.maxOfOrNull { maxOf(it.income, it.expense) }?.takeIf { it > 0L } ?: 1L
-    val highestIncome = monthStats.maxByOrNull { it.income }
-    val highestExpense = monthStats.maxByOrNull { it.expense }
 
     LazyColumn(
         modifier = modifier.padding(horizontal = 18.dp),
@@ -64,44 +64,85 @@ fun ChartScreen(
     ) {
         item { Spacer(Modifier.height(10.dp)) }
         item {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Row(horizontalArrangement = Arrangement.spacedBy(10.dp), verticalAlignment = Alignment.CenterVertically) {
-                    OutlinedButton(onClick = onBack) { Text("<") }
-                    Text("年度图表", style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Black)
-                }
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    OutlinedButton(onClick = { year -= 1 }) { Text("上一年") }
-                    OutlinedButton(onClick = { year += 1 }) { Text("下一年") }
-                }
+            Row(horizontalArrangement = Arrangement.spacedBy(10.dp), verticalAlignment = Alignment.CenterVertically) {
+                OutlinedButton(onClick = onBack) { Text("<") }
+                Text("年度图表", style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Black)
             }
         }
         item {
-            Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)) {
-                Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Text("${year} 年汇总", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
-                    Text("收入 ${AmountUtil.format(totalIncome)}")
-                    Text("支出 ${AmountUtil.format(totalExpense)}")
-                    Text("结余 ${AmountUtil.format(totalIncome - totalExpense)}")
-                    Text("最高收入月：${highestIncome?.month ?: "-"} 月 ${highestIncome?.income?.let { AmountUtil.format(it) } ?: "￥0.00"}")
-                    Text("最高支出月：${highestExpense?.month ?: "-"} 月 ${highestExpense?.expense?.let { AmountUtil.format(it) } ?: "￥0.00"}")
-                }
+            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                AnnualAmountBlock(
+                    label = "年收入",
+                    amount = totalIncome,
+                    color = Color(0xFF1F7A4D),
+                    modifier = Modifier.weight(1f)
+                )
+                AnnualAmountBlock(
+                    label = "年支出",
+                    amount = totalExpense,
+                    color = Color(0xFFB3542E),
+                    modifier = Modifier.weight(1f)
+                )
+            }
+        }
+        item {
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
+            ) {
+                Text(
+                    "结余 ${AmountUtil.format(balance)}",
+                    modifier = Modifier.padding(16.dp),
+                    style = MaterialTheme.typography.titleLarge,
+                    fontWeight = FontWeight.Black
+                )
             }
         }
         item {
             Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)) {
                 Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                    Text("12 个月收支", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+                    Text("每月收入支出", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
                     monthStats.forEach { stat ->
                         MonthBar(stat = stat, maxValue = maxValue)
                     }
                 }
             }
         }
+        item {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.Center,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                OutlinedButton(onClick = { year -= 1 }) { Text("<") }
+                Text(
+                    "${year}年",
+                    modifier = Modifier.padding(horizontal = 18.dp),
+                    style = MaterialTheme.typography.titleLarge,
+                    fontWeight = FontWeight.Bold
+                )
+                OutlinedButton(onClick = { year += 1 }) { Text(">") }
+            }
+        }
         item { Spacer(Modifier.height(88.dp)) }
+    }
+}
+
+@Composable
+private fun AnnualAmountBlock(
+    label: String,
+    amount: Long,
+    color: Color,
+    modifier: Modifier = Modifier
+) {
+    Card(
+        modifier = modifier,
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
+    ) {
+        Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+            Text(label, color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 13.sp)
+            Text(AmountUtil.format(amount), color = color, fontWeight = FontWeight.Black, fontSize = 22.sp)
+        }
     }
 }
 
