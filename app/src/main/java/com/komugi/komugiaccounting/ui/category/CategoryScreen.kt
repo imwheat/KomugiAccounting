@@ -5,12 +5,15 @@ import android.net.Uri
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -22,6 +25,7 @@ import androidx.compose.material3.FilterChip
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.Slider
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -36,6 +40,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -47,6 +52,11 @@ import com.komugi.komugiaccounting.ui.components.CategoryIconBadge
 private enum class CreateMode {
     GROUP,
     CATEGORY
+}
+
+private enum class ColorPickerMode {
+    RGB,
+    HSV
 }
 
 @Composable
@@ -434,7 +444,7 @@ private fun GroupEditCard(
                 singleLine = true,
                 modifier = Modifier.fillMaxWidth()
             )
-            StyleEditor(
+            StyleEditorWithColorPicker(
                 name = draft.name,
                 state = StyleEditState(draft.name.firstIconText(), draft.color, draft.iconImageUri),
                 onStateChange = { onDraftChange(draft.copy(iconName = draft.name.firstIconText(), color = it.color, iconImageUri = it.iconImageUri)) },
@@ -491,7 +501,7 @@ private fun CategoryRow(
                 OutlinedTextField(value = editName, onValueChange = onEditName, label = { Text("名称") }, singleLine = true, modifier = Modifier.weight(1f))
                 Button(onClick = onSave) { Text("保存") }
             }
-            StyleEditor(name = editName, state = styleState, onStateChange = onStyleChange, onSave = onSave)
+            StyleEditorWithColorPicker(name = editName, state = styleState, onStateChange = onStyleChange, onSave = onSave)
             Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
                 Text(if (category.enabled) "记账页显示" else "记账页隐藏")
                 Switch(checked = category.enabled, onCheckedChange = onEnabledChange)
@@ -548,6 +558,157 @@ private fun StyleEditor(
     }
 }
 
+@Composable
+private fun StyleEditorWithColorPicker(
+    name: String,
+    state: StyleEditState,
+    onStateChange: (StyleEditState) -> Unit,
+    onSave: () -> Unit,
+    showIconText: Boolean = true
+) {
+    val context = LocalContext.current
+    var showColorPicker by rememberSaveable { mutableStateOf(false) }
+    val launcher = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri: Uri? ->
+        uri ?: return@rememberLauncherForActivityResult
+        runCatching {
+            context.contentResolver.takePersistableUriPermission(uri, Intent.FLAG_GRANT_READ_URI_PERMISSION)
+        }
+        onStateChange(state.copy(iconImageUri = uri.toString()))
+    }
+    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
+            if (showIconText) {
+                OutlinedTextField(
+                    value = state.iconName,
+                    onValueChange = { onStateChange(state.copy(iconName = it)) },
+                    label = { Text("图标文字") },
+                    singleLine = true,
+                    modifier = Modifier.weight(1f)
+                )
+            }
+            OutlinedTextField(
+                value = state.color,
+                onValueChange = { onStateChange(state.copy(color = it)) },
+                label = { Text("主题色") },
+                singleLine = true,
+                modifier = Modifier.weight(1f)
+            )
+            OutlinedButton(onClick = { showColorPicker = true }) { Text("取色") }
+        }
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            OutlinedButton(onClick = { launcher.launch(arrayOf("image/*")) }) { Text("选择图片") }
+            OutlinedButton(onClick = { onStateChange(state.copy(iconImageUri = "", iconName = name.firstIconText())) }) { Text("清除图片") }
+            Button(onClick = onSave) { Text("保存样式") }
+        }
+    }
+    if (showColorPicker) {
+        ColorPickerDialog(
+            initialColor = state.color,
+            onDismiss = { showColorPicker = false },
+            onConfirm = {
+                onStateChange(state.copy(color = it))
+                showColorPicker = false
+            }
+        )
+    }
+}
+
+@Composable
+private fun ColorPickerDialog(
+    initialColor: String,
+    onDismiss: () -> Unit,
+    onConfirm: (String) -> Unit
+) {
+    val initialRgb = remember(initialColor) { parseHexColorToRgb(initialColor) }
+    var mode by rememberSaveable(initialColor) { mutableStateOf(ColorPickerMode.RGB) }
+    var red by rememberSaveable(initialColor) { mutableStateOf(initialRgb[0].toFloat()) }
+    var green by rememberSaveable(initialColor) { mutableStateOf(initialRgb[1].toFloat()) }
+    var blue by rememberSaveable(initialColor) { mutableStateOf(initialRgb[2].toFloat()) }
+    val initialHsv = remember(initialRgb) { rgbToHsv(initialRgb[0], initialRgb[1], initialRgb[2]) }
+    var hue by rememberSaveable(initialColor) { mutableStateOf(initialHsv[0]) }
+    var saturation by rememberSaveable(initialColor) { mutableStateOf(initialHsv[1]) }
+    var value by rememberSaveable(initialColor) { mutableStateOf(initialHsv[2]) }
+
+    fun syncRgbFromHsv() {
+        val rgb = hsvToRgb(hue, saturation, value)
+        red = rgb[0].toFloat()
+        green = rgb[1].toFloat()
+        blue = rgb[2].toFloat()
+    }
+
+    fun syncHsvFromRgb() {
+        val hsv = rgbToHsv(red.toInt(), green.toInt(), blue.toInt())
+        hue = hsv[0]
+        saturation = hsv[1]
+        value = hsv[2]
+    }
+
+    val hexColor = rgbToHex(red.toInt(), green.toInt(), blue.toInt())
+    val previewColor = Color(red.toInt(), green.toInt(), blue.toInt())
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("选择颜色") },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(54.dp)
+                        .background(previewColor)
+                )
+                Text(hexColor, fontWeight = FontWeight.Bold)
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    FilterChip(
+                        selected = mode == ColorPickerMode.RGB,
+                        onClick = {
+                            mode = ColorPickerMode.RGB
+                            syncRgbFromHsv()
+                        },
+                        label = { Text("RGB") }
+                    )
+                    FilterChip(
+                        selected = mode == ColorPickerMode.HSV,
+                        onClick = {
+                            mode = ColorPickerMode.HSV
+                            syncHsvFromRgb()
+                        },
+                        label = { Text("HSV") }
+                    )
+                }
+                if (mode == ColorPickerMode.RGB) {
+                    ColorSlider("R", red, 0f..255f) { red = it; syncHsvFromRgb() }
+                    ColorSlider("G", green, 0f..255f) { green = it; syncHsvFromRgb() }
+                    ColorSlider("B", blue, 0f..255f) { blue = it; syncHsvFromRgb() }
+                } else {
+                    ColorSlider("H", hue, 0f..360f) { hue = it; syncRgbFromHsv() }
+                    ColorSlider("S", saturation, 0f..1f) { saturation = it; syncRgbFromHsv() }
+                    ColorSlider("V", value, 0f..1f) { value = it; syncRgbFromHsv() }
+                }
+            }
+        },
+        confirmButton = { Button(onClick = { onConfirm(hexColor) }) { Text("确定") } },
+        dismissButton = { OutlinedButton(onClick = onDismiss) { Text("取消") } }
+    )
+}
+
+@Composable
+private fun ColorSlider(
+    label: String,
+    value: Float,
+    range: ClosedFloatingPointRange<Float>,
+    onChange: (Float) -> Unit
+) {
+    Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+        Text("$label ${formatColorValue(value, range)}", color = MaterialTheme.colorScheme.onSurfaceVariant)
+        Slider(
+            value = value.coerceIn(range.start, range.endInclusive),
+            onValueChange = onChange,
+            valueRange = range
+        )
+    }
+}
+
 private data class StyleEditState(
     val iconName: String,
     val color: String,
@@ -579,3 +740,39 @@ private fun String.firstIconText(): String = trim().firstOrNull()?.toString().or
 
 private fun defaultColor(type: RecordType): String =
     if (type == RecordType.EXPENSE) "#FF7043" else "#66BB6A"
+
+private fun parseHexColorToRgb(value: String): IntArray {
+    val color = runCatching { android.graphics.Color.parseColor(value) }
+        .getOrDefault(android.graphics.Color.parseColor("#9E9E9E"))
+    return intArrayOf(
+        android.graphics.Color.red(color),
+        android.graphics.Color.green(color),
+        android.graphics.Color.blue(color)
+    )
+}
+
+private fun rgbToHex(red: Int, green: Int, blue: Int): String =
+    "#%02X%02X%02X".format(red.coerceIn(0, 255), green.coerceIn(0, 255), blue.coerceIn(0, 255))
+
+private fun rgbToHsv(red: Int, green: Int, blue: Int): FloatArray =
+    FloatArray(3).also {
+        android.graphics.Color.RGBToHSV(red.coerceIn(0, 255), green.coerceIn(0, 255), blue.coerceIn(0, 255), it)
+    }
+
+private fun hsvToRgb(hue: Float, saturation: Float, value: Float): IntArray {
+    val color = android.graphics.Color.HSVToColor(
+        floatArrayOf(
+            hue.coerceIn(0f, 360f),
+            saturation.coerceIn(0f, 1f),
+            value.coerceIn(0f, 1f)
+        )
+    )
+    return intArrayOf(
+        android.graphics.Color.red(color),
+        android.graphics.Color.green(color),
+        android.graphics.Color.blue(color)
+    )
+}
+
+private fun formatColorValue(value: Float, range: ClosedFloatingPointRange<Float>): String =
+    if (range.endInclusive <= 1f) "%.2f".format(value.coerceIn(range.start, range.endInclusive)) else value.toInt().toString()
