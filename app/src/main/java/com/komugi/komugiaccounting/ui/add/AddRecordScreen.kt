@@ -3,6 +3,7 @@ package com.komugi.komugiaccounting.ui.add
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.FlowRow
@@ -33,8 +34,6 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.focus.FocusRequester
-import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.text.font.FontWeight
@@ -228,7 +227,7 @@ fun AddRecordScreen(
                     amount = amount,
                     onAmountChange = { amount = it },
                     showNumberKeyboard = showNumberKeyboard,
-                    onAmountFocusChange = { focused -> showNumberKeyboard = focused },
+                    onAmountClick = { showNumberKeyboard = true },
                     onDismissNumberKeyboard = { hideNumberKeyboard() },
                     selectedCategory = selectedCategory,
                     onOpenCategoryPicker = {
@@ -322,7 +321,7 @@ private fun LazyListScope.recordFormItems(
     amount: String,
     onAmountChange: (String) -> Unit,
     showNumberKeyboard: Boolean,
-    onAmountFocusChange: (Boolean) -> Unit,
+    onAmountClick: () -> Unit,
     onDismissNumberKeyboard: () -> Unit,
     selectedCategory: Category?,
     onOpenCategoryPicker: () -> Unit,
@@ -343,28 +342,22 @@ private fun LazyListScope.recordFormItems(
     onDelete: () -> Unit
 ) {
     item {
-        val amountFocusRequester = remember { FocusRequester() }
-
         Card(
             shape = RoundedCornerShape(28.dp),
             colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
         ) {
             Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
-                OutlinedTextField(
-                    value = amount,
-                    onValueChange = {},
-                    label = { Text("金额") },
-                    readOnly = true,
-                    singleLine = true,
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .focusRequester(amountFocusRequester)
-                        .onFocusChanged { onAmountFocusChange(it.isFocused) }
-                        .clickable {
-                            amountFocusRequester.requestFocus()
-                            onAmountFocusChange(true)
-                        }
-                )
+                Box(modifier = Modifier.fillMaxWidth().clickable(onClick = onAmountClick)) {
+                    OutlinedTextField(
+                        value = amount,
+                        onValueChange = {},
+                        label = { Text("金额") },
+                        enabled = false,
+                        readOnly = true,
+                        singleLine = true,
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                }
                 if (showNumberKeyboard) {
                     NumberKeyboard(
                         value = amount,

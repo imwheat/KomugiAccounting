@@ -27,6 +27,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -58,7 +59,7 @@ fun AutomationScreen(
     onBottomBarVisibleChange: (Boolean) -> Unit,
     modifier: Modifier = Modifier
 ) {
-    var page by rememberSaveable { mutableStateOf<AutomationPage>(AutomationPage.Main) }
+    var page by remember { mutableStateOf<AutomationPage>(AutomationPage.Main) }
     var draftCategoryId by rememberSaveable { mutableStateOf("") }
 
     LaunchedEffect(Unit) {
