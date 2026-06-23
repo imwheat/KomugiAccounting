@@ -269,7 +269,7 @@ private fun Header(title: String, onBack: () -> Unit) {
 private fun GroupInfoCard(type: RecordType, groupName: String, meta: Category?, categoryCount: Int, enabled: Boolean, onEnabledChange: (Boolean) -> Unit, onEdit: () -> Unit) {
     Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)) {
         Row(Modifier.fillMaxWidth().alpha(if (enabled) 1f else 0.48f).padding(12.dp), horizontalArrangement = Arrangement.spacedBy(12.dp), verticalAlignment = Alignment.CenterVertically) {
-            CategoryIconBadge(name = groupName, iconName = meta?.iconName.orEmpty().ifBlank { groupName.firstIconText() }, color = meta?.color ?: defaultColor(type), iconImageUri = meta?.iconImageUri.orEmpty())
+            CategoryIconBadge(name = groupName, iconName = groupName.firstIconText(), color = meta?.color ?: defaultColor(type), iconImageUri = meta?.iconImageUri.orEmpty())
             Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(3.dp)) {
                 Text(groupName, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Black)
                 Text(if (type == RecordType.EXPENSE) "支出分组" else "收入分组", color = MaterialTheme.colorScheme.onSurfaceVariant)
@@ -439,7 +439,7 @@ private data class StyleEditState(val iconName: String, val color: String, val i
 private data class GroupEditState(val name: String, val iconName: String, val color: String, val iconImageUri: String, val enabled: Boolean) {
     companion object {
         fun from(groupName: String, meta: Category?, enabled: Boolean, type: RecordType) =
-            GroupEditState(groupName, meta?.iconName.orEmpty().ifBlank { groupName.firstIconText() }, meta?.color ?: defaultColor(type), meta?.iconImageUri.orEmpty(), enabled)
+            GroupEditState(groupName, groupName.firstIconText(), meta?.color ?: defaultColor(type), meta?.iconImageUri.orEmpty(), enabled)
     }
 }
 private data class CategoryEditState(val name: String, val iconName: String, val color: String, val iconImageUri: String, val enabled: Boolean) {

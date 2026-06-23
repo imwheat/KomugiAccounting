@@ -382,7 +382,11 @@ private fun annualGroupSummary(
         val amount = groupRecords.sumOf { it.effectiveAmount }
         GroupSummaryItem(
             groupName = groupName,
-            iconName = meta?.iconName?.ifBlank { groupName.firstIconText() } ?: groupName.firstIconText(),
+            iconName = if (meta?.name?.startsWith("__group__") == true) {
+                meta.iconName.ifBlank { groupName.firstIconText() }
+            } else {
+                groupName.firstIconText()
+            },
             color = meta?.color ?: "#9E9E9E",
             iconImageUri = meta?.iconImageUri.orEmpty(),
             categoryIds = categoryIds,
