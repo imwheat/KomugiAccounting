@@ -5,7 +5,6 @@ import androidx.activity.ComponentActivity
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
-import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.Arrangement
@@ -23,18 +22,14 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.layout.ContentScale
-import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
-import com.komugi.komugiaccounting.R
 import com.komugi.komugiaccounting.data.model.ThemeMode
 import com.komugi.komugiaccounting.data.repository.AppDataRepository
 import com.komugi.komugiaccounting.navigation.Screen
@@ -46,7 +41,6 @@ import com.komugi.komugiaccounting.ui.home.HomeViewModel
 import com.komugi.komugiaccounting.ui.settings.SettingsScreen
 import com.komugi.komugiaccounting.ui.template.TemplateScreen
 import com.komugi.komugiaccounting.ui.theme.KomugiAccountingTheme
-import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
 class MainActivity : ComponentActivity() {
@@ -62,32 +56,8 @@ class MainActivity : ComponentActivity() {
                 ThemeMode.SYSTEM -> isSystemInDarkTheme()
             }
             KomugiAccountingTheme(darkTheme = darkTheme, dynamicColor = false) {
-                SplashHost {
-                    AccountingApp(repository)
-                }
+                AccountingApp(repository)
             }
-        }
-    }
-}
-
-@Composable
-private fun SplashHost(content: @Composable () -> Unit) {
-    var showSplash by remember { mutableStateOf(true) }
-
-    LaunchedEffect(Unit) {
-        delay(650)
-        showSplash = false
-    }
-
-    Box(modifier = Modifier.fillMaxSize()) {
-        content()
-        if (showSplash) {
-            Image(
-                painter = painterResource(R.drawable.splash_logo),
-                contentDescription = null,
-                contentScale = ContentScale.Crop,
-                modifier = Modifier.fillMaxSize()
-            )
         }
     }
 }
