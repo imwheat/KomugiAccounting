@@ -1,5 +1,9 @@
 package com.komugi.komugiaccounting.ui.automation
 
+import android.content.ComponentName
+import android.content.Context
+import android.content.Intent
+import android.provider.Settings
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -11,6 +15,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
@@ -32,9 +37,11 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
+import com.komugi.komugiaccounting.NotificationAutoBookService
 import com.komugi.komugiaccounting.data.model.AutoBookNotificationLog
 import com.komugi.komugiaccounting.data.model.AutoBookRule
 import com.komugi.komugiaccounting.data.model.AutoBookTodo
@@ -127,17 +134,8 @@ fun AutomationScreen(
             onEdit = { page = AutomationPage.AutoBookEdit(it) },
             modifier = modifier
         )
-        AutomationPage.AutoBookTest -> AutoBookTestScreen(
-            repository = repository,
-            onBack = { page = AutomationPage.AutoBookRules },
-            modifier = modifier
-        )
-        is AutomationPage.AutoBookEdit -> AutoBookRuleEditScreen(
-            repository = repository,
-            ruleId = current.ruleId,
-            onBack = { page = AutomationPage.AutoBookRules },
-            modifier = modifier
-        )
+        AutomationPage.AutoBookTest -> AutoBookTestScreen(repository, { page = AutomationPage.AutoBookRules }, modifier)
+        is AutomationPage.AutoBookEdit -> AutoBookRuleEditScreen(repository, current.ruleId, { page = AutomationPage.AutoBookRules }, modifier)
         is AutomationPage.RuleList -> AutomationRuleListScreen(
             repository = repository,
             type = current.type,
@@ -192,21 +190,15 @@ private fun AutomationMainScreen(
             val rules = data.automationRules.filter { it.type == RecordType.INCOME }
             AutomationOptionCard("自动收入", rules.count { it.enabled }, rules.size) { onOpenRuleList(RecordType.INCOME) }
         }
-        item {
-            AutomationOptionCard("自动记账", data.autoBookRules.count { it.enabled }, data.autoBookRules.size, onOpenAutoBook)
-        }
-        item {
-            AutomationOptionCard("自动记账代办", data.autoBookTodos.size, data.autoBookTodos.size, onOpenTodos)
-        }
+        item { AutomationOptionCard("自动记账", data.autoBookRules.count { it.enabled }, data.autoBookRules.size, onOpenAutoBook) }
+        item { AutomationOptionCard("自动记账代办", data.autoBookTodos.size, data.autoBookTodos.size, onOpenTodos) }
     }
 }
 
 @Composable
 private fun AutomationOptionCard(title: String, enabledCount: Int, totalCount: Int, onClick: () -> Unit) {
     Card(
-        modifier = Modifier
-            .fillMaxWidth()
-            .clickable(onClick = onClick),
+        modifier = Modifier.fillMaxWidth().clickable(onClick = onClick),
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
     ) {
         Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -225,7 +217,14 @@ private fun AutoBookRuleListScreen(
     onEdit: (String) -> Unit,
     modifier: Modifier = Modifier
 ) {
+    val context = LocalContext.current
     val data by repository.data.collectAsState()
+    var showPermissionDialog by rememberSaveable { mutableStateOf(false) }
+
+    LaunchedEffect(Unit) {
+        showPermissionDialog = !context.isNotificationListenerEnabled()
+    }
+
     LazyColumn(modifier = modifier.padding(18.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
         item {
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
@@ -248,10 +247,7 @@ private fun AutoBookRuleListScreen(
         } else {
             items(data.autoBookRules, key = { it.id }) { rule ->
                 Card(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .alpha(if (rule.enabled) 1f else 0.48f)
-                        .clickable { onEdit(rule.id) },
+                    modifier = Modifier.fillMaxWidth().alpha(if (rule.enabled) 1f else 0.48f).clickable { onEdit(rule.id) },
                     colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
                 ) {
                     Row(Modifier.padding(14.dp), horizontalArrangement = Arrangement.spacedBy(12.dp), verticalAlignment = Alignment.CenterVertically) {
@@ -266,6 +262,25 @@ private fun AutoBookRuleListScreen(
                 }
             }
         }
+    }
+
+    if (showPermissionDialog) {
+        AlertDialog(
+            onDismissRequest = { showPermissionDialog = false },
+            title = { Text("需要通知使用权") },
+            text = { Text("自动记账需要读取手机通知内容。开启后，软件未打开时也能接收新通知并生成自动记账代办。") },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        showPermissionDialog = false
+                        context.startActivity(Intent(Settings.ACTION_NOTIFICATION_LISTENER_SETTINGS))
+                    }
+                ) { Text("去开启") }
+            },
+            dismissButton = {
+                OutlinedButton(onClick = { showPermissionDialog = false }) { Text("暂不开启") }
+            }
+        )
     }
 }
 
@@ -516,10 +531,7 @@ private fun AutomationRuleListScreen(
 @Composable
 private fun AutomationRuleCard(rule: AutomationRule, category: Category?, memberName: String, onClick: () -> Unit, onEnabledChange: (Boolean) -> Unit) {
     Card(
-        modifier = Modifier
-            .fillMaxWidth()
-            .alpha(if (rule.enabled) 1f else 0.48f)
-            .clickable(onClick = onClick),
+        modifier = Modifier.fillMaxWidth().alpha(if (rule.enabled) 1f else 0.48f).clickable(onClick = onClick),
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
     ) {
         Row(Modifier.padding(14.dp), horizontalArrangement = Arrangement.spacedBy(12.dp), verticalAlignment = Alignment.CenterVertically) {
@@ -639,4 +651,10 @@ private fun AutomationFrequency.label(month: Int, day: Int): String = when (this
     AutomationFrequency.DAILY -> "每天"
     AutomationFrequency.MONTHLY -> "每月${day}号"
     AutomationFrequency.YEARLY -> "每年${month}月${day}号"
+}
+
+private fun Context.isNotificationListenerEnabled(): Boolean {
+    val enabledListeners = Settings.Secure.getString(contentResolver, "enabled_notification_listeners").orEmpty()
+    val serviceName = ComponentName(this, NotificationAutoBookService::class.java).flattenToString()
+    return enabledListeners.split(":").any { it.equals(serviceName, ignoreCase = true) }
 }
