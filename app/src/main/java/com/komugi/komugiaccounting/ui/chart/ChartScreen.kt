@@ -72,76 +72,42 @@ fun ChartScreen(
             }
             item {
                 Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                    AnnualAmountBlock(
-                        label = "年收入",
-                        amount = totalIncome,
-                        color = Color(0xFF1F7A4D),
-                        modifier = Modifier.weight(1f)
-                    )
-                    AnnualAmountBlock(
-                        label = "年支出",
-                        amount = totalExpense,
-                        color = Color(0xFFB3542E),
-                        modifier = Modifier.weight(1f)
-                    )
+                    AnnualAmountBlock("年收入", totalIncome, Color(0xFF1F7A4D), Modifier.weight(1f))
+                    AnnualAmountBlock("年支出", totalExpense, Color(0xFFB3542E), Modifier.weight(1f))
                 }
             }
             item {
-                Card(
-                    modifier = Modifier.fillMaxWidth(),
-                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
-                ) {
-                    Text(
-                        "结余 ${AmountUtil.format(balance)}",
-                        modifier = Modifier.padding(16.dp),
-                        color = Color(0xFF2E5A87),
-                        style = MaterialTheme.typography.titleLarge,
-                        fontWeight = FontWeight.Black
-                    )
+                Card(modifier = Modifier.fillMaxWidth(), colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)) {
+                    Row(Modifier.padding(16.dp), horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
+                        Text("结余", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Black)
+                        Text(AmountUtil.format(balance), color = Color(0xFF2E5A87), style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Black)
+                    }
                 }
             }
             item {
                 Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)) {
                     Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
                         Text("每月收入支出", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
-                        monthStats.forEach { stat ->
-                            MonthBar(stat = stat, maxValue = maxValue)
-                        }
+                        monthStats.forEach { stat -> MonthBar(stat, maxValue) }
                     }
                 }
             }
             item { Spacer(Modifier.height(12.dp)) }
         }
-        YearSwitcher(
-            year = year,
-            onPrevious = { year -= 1 },
-            onNext = { year += 1 }
-        )
+        YearSwitcher(year = year, onPrevious = { year -= 1 }, onNext = { year += 1 })
     }
 }
 
 @Composable
 private fun YearSwitcher(year: Int, onPrevious: () -> Unit, onNext: () -> Unit) {
-    Card(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(vertical = 10.dp),
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
-    ) {
+    Card(modifier = Modifier.fillMaxWidth().padding(vertical = 10.dp), colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)) {
         Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(10.dp),
+            modifier = Modifier.fillMaxWidth().padding(10.dp),
             horizontalArrangement = Arrangement.Center,
             verticalAlignment = Alignment.CenterVertically
         ) {
             OutlinedButton(onClick = onPrevious) { Text("<") }
-            Text(
-                "${year}年",
-                modifier = Modifier.padding(horizontal = 18.dp),
-                style = MaterialTheme.typography.titleLarge,
-                fontWeight = FontWeight.Bold
-            )
+            Text("${year}年", modifier = Modifier.padding(horizontal = 18.dp), style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
             OutlinedButton(onClick = onNext) { Text(">") }
         }
     }
@@ -162,12 +128,12 @@ private fun MonthBar(stat: MonthStat, maxValue: Long) {
     Column(verticalArrangement = Arrangement.spacedBy(5.dp)) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             Text("${stat.month}月", modifier = Modifier.width(42.dp), fontWeight = FontWeight.SemiBold)
-            Bar(value = stat.income, maxValue = maxValue, color = Color(0xFF1F7A4D), modifier = Modifier.weight(1f))
+            Bar(stat.income, maxValue, Color(0xFF1F7A4D), Modifier.weight(1f))
             Text(AmountUtil.format(stat.income), modifier = Modifier.width(96.dp), color = MaterialTheme.colorScheme.onSurfaceVariant)
         }
         Row(verticalAlignment = Alignment.CenterVertically) {
             Spacer(Modifier.width(42.dp))
-            Bar(value = stat.expense, maxValue = maxValue, color = Color(0xFFB3542E), modifier = Modifier.weight(1f))
+            Bar(stat.expense, maxValue, Color(0xFFB3542E), Modifier.weight(1f))
             Text(AmountUtil.format(stat.expense), modifier = Modifier.width(96.dp), color = MaterialTheme.colorScheme.onSurfaceVariant)
         }
     }
@@ -177,20 +143,11 @@ private fun MonthBar(stat: MonthStat, maxValue: Long) {
 private fun Bar(value: Long, maxValue: Long, color: Color, modifier: Modifier = Modifier) {
     val fraction = (value.toFloat() / maxValue.toFloat()).coerceIn(0.02f, 1f)
     Box(modifier = modifier.height(10.dp).background(MaterialTheme.colorScheme.surfaceVariant, RoundedCornerShape(99.dp))) {
-        Box(
-            modifier = Modifier
-                .fillMaxWidth(fraction)
-                .height(10.dp)
-                .background(color, RoundedCornerShape(99.dp))
-        )
+        Box(modifier = Modifier.fillMaxWidth(fraction).height(10.dp).background(color, RoundedCornerShape(99.dp)))
     }
 }
 
-private data class MonthStat(
-    val month: Int,
-    val income: Long,
-    val expense: Long
-)
+private data class MonthStat(val month: Int, val income: Long, val expense: Long)
 
 private fun List<TransactionRecord>.sumByType(start: Long, end: Long, type: RecordType): Long =
     filter { it.type == type && it.dateTime in start until end }.sumOf { it.effectiveAmount }

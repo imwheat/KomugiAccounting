@@ -28,6 +28,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -59,6 +60,7 @@ fun HomeScreen(
 
     LaunchedEffect(page) {
         onBottomBarVisibleChange(page == 0)
+        if (page == 0) detailBackSignal = 0
     }
 
     BackHandler(enabled = page != 0) {
@@ -72,10 +74,12 @@ fun HomeScreen(
                 onEditRecord = onEditRecord,
                 onOpenPage = { targetPage ->
                     if (targetPage == 1) detailFilterRequest = null
+                    if (targetPage == 1) detailBackSignal = 0
                     page = targetPage
                 },
                 onOpenCategoryDetail = { request ->
                     detailFilterRequest = request
+                    detailBackSignal = 0
                     page = 1
                 }
             )
@@ -88,7 +92,7 @@ fun HomeScreen(
                 onBackSignalConsumed = { consumed ->
                     if (!consumed) page = 0
                 },
-                modifier = Modifier.swipeRightToBack { page = 0 }
+                modifier = Modifier
             )
             2 -> ChartScreen(
                 repository = repository,
@@ -129,7 +133,6 @@ private fun HomeOverviewScreen(
         item {
             Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
                 Text("小麦账本", fontSize = 34.sp, fontWeight = FontWeight.Black, color = MaterialTheme.colorScheme.onBackground)
-                Text("本地保存的个人收支记录", color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
         }
         item {
@@ -152,6 +155,7 @@ private fun HomeOverviewScreen(
                 recordCount = expenseSummary.recordCount,
                 totalLabel = "总支出",
                 totalAmount = expenseSummary.totalExpense,
+                totalAmountColor = Color(0xFFB3542E),
                 categories = expenseSummary.categories.map {
                     CategorySummaryItem(it.categoryId, it.categoryName, it.amount, it.percent)
                 },
@@ -168,6 +172,7 @@ private fun HomeOverviewScreen(
                 recordCount = incomeSummary.recordCount,
                 totalLabel = "总收入",
                 totalAmount = incomeSummary.totalIncome,
+                totalAmountColor = Color(0xFF1F7A4D),
                 categories = incomeSummary.categories.map {
                     CategorySummaryItem(it.categoryId, it.categoryName, it.amount, it.percent)
                 },
@@ -204,6 +209,7 @@ private fun MonthlyCategorySummaryCard(
     recordCount: Int,
     totalLabel: String,
     totalAmount: Long,
+    totalAmountColor: Color,
     categories: List<CategorySummaryItem>,
     expanded: Boolean,
     onExpandedChange: (Boolean) -> Unit,
@@ -221,7 +227,10 @@ private fun MonthlyCategorySummaryCard(
                 Text(title, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
                 Text("共${recordCount}笔记账", color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
-            Text("$totalLabel ${AmountUtil.format(totalAmount)}", fontWeight = FontWeight.Black, fontSize = 20.sp)
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                Text(totalLabel, fontWeight = FontWeight.Black, fontSize = 20.sp)
+                Text(AmountUtil.format(totalAmount), color = totalAmountColor, fontWeight = FontWeight.Black, fontSize = 20.sp)
+            }
             if (categories.isEmpty()) {
                 Text("这个月份还没有记录。", color = MaterialTheme.colorScheme.onSurfaceVariant)
             } else {
