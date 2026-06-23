@@ -13,6 +13,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -31,9 +32,14 @@ import com.komugi.komugiaccounting.ui.member.MemberScreen
 fun SettingsScreen(
     repository: AppDataRepository,
     onOpenTemplates: () -> Unit,
+    onBottomBarVisibleChange: (Boolean) -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     var page by rememberSaveable { mutableStateOf(SettingsPage.Main) }
+
+    LaunchedEffect(page) {
+        onBottomBarVisibleChange(page == SettingsPage.Main)
+    }
 
     BackHandler(enabled = page != SettingsPage.Main) {
         page = SettingsPage.Main

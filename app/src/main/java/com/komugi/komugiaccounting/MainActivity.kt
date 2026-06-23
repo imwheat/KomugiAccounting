@@ -66,6 +66,7 @@ fun AccountingApp(repository: AppDataRepository) {
     var pendingHomePage by remember { mutableStateOf<Int?>(null) }
     var showHomeBottomBar by remember { mutableStateOf(true) }
     var showAutomationBottomBar by remember { mutableStateOf(true) }
+    var showSettingsBottomBar by remember { mutableStateOf(true) }
     var openAutomationTodoList by remember { mutableStateOf(false) }
     var automationTodoOpenedFromHome by remember { mutableStateOf(false) }
     val homeViewModel = remember(repository) { HomeViewModel(repository) }
@@ -106,7 +107,8 @@ fun AccountingApp(repository: AppDataRepository) {
             if (
                 currentScreen != Screen.Add &&
                 (currentScreen != Screen.Home || showHomeBottomBar) &&
-                (currentScreen != Screen.Automation || showAutomationBottomBar)
+                (currentScreen != Screen.Automation || showAutomationBottomBar) &&
+                (currentScreen != Screen.Settings || showSettingsBottomBar)
             ) {
                 NavigationBar(containerColor = MaterialTheme.colorScheme.surface.copy(alpha = 0.94f)) {
                     bottomScreens.forEach { screen ->
@@ -175,7 +177,8 @@ fun AccountingApp(repository: AppDataRepository) {
                 )
                 Screen.Settings -> SettingsScreen(
                     repository = repository,
-                    onOpenTemplates = { navigateTo(Screen.Template) }
+                    onOpenTemplates = { navigateTo(Screen.Template) },
+                    onBottomBarVisibleChange = { showSettingsBottomBar = it }
                 )
             }
         }
