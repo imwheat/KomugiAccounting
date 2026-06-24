@@ -20,6 +20,7 @@ import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -44,10 +45,20 @@ import java.util.UUID
 fun TemplateScreen(
     repository: AppDataRepository,
     onBack: () -> Unit,
+    initialCreate: Boolean = false,
+    onInitialCreateConsumed: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     var editingTemplateId by rememberSaveable { mutableStateOf<String?>(null) }
     var isEditing by rememberSaveable { mutableStateOf(false) }
+
+    LaunchedEffect(initialCreate) {
+        if (initialCreate) {
+            editingTemplateId = null
+            isEditing = true
+            onInitialCreateConsumed()
+        }
+    }
 
     BackHandler(enabled = isEditing) {
         isEditing = false

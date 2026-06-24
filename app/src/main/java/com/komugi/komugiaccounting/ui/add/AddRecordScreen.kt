@@ -41,8 +41,9 @@ import com.komugi.komugiaccounting.data.model.Member
 import com.komugi.komugiaccounting.data.model.RecordType
 import com.komugi.komugiaccounting.data.model.Template
 import com.komugi.komugiaccounting.ui.components.CategoryPickerContent
-import com.komugi.komugiaccounting.ui.components.DateTimePickerDialog
+import com.komugi.komugiaccounting.ui.components.DatePickerDialog
 import com.komugi.komugiaccounting.ui.components.NumberKeyboard
+import com.komugi.komugiaccounting.ui.components.TimePickerDialog
 import com.komugi.komugiaccounting.ui.components.categoryDisplayPath
 import com.komugi.komugiaccounting.util.AmountUtil
 import com.komugi.komugiaccounting.util.DateTimeUtil
@@ -58,6 +59,7 @@ fun AddRecordScreen(
     recordId: String? = null,
     autoBookTodoId: String? = null,
     onAutoBookTodoChange: (String?) -> Unit = {},
+    onCreateTemplate: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     val data by viewModel.data.collectAsState()
@@ -73,7 +75,8 @@ fun AddRecordScreen(
     var message by rememberSaveable { mutableStateOf<String?>(null) }
     var loadedRecordId by rememberSaveable { mutableStateOf<String?>(null) }
     var loadedAutoBookTodoId by rememberSaveable { mutableStateOf<String?>(null) }
-    var showDateTimePicker by rememberSaveable { mutableStateOf(false) }
+    var showDatePicker by rememberSaveable { mutableStateOf(false) }
+    var showTimePicker by rememberSaveable { mutableStateOf(false) }
     var showNumberKeyboard by rememberSaveable { mutableStateOf(false) }
     var showCategoryPicker by rememberSaveable { mutableStateOf(false) }
     var pendingDelete by rememberSaveable { mutableStateOf(false) }
@@ -81,6 +84,10 @@ fun AddRecordScreen(
     fun hideNumberKeyboard() {
         showNumberKeyboard = false
         focusManager.clearFocus()
+    }
+
+    fun dismissNumberKeyboard() {
+        showNumberKeyboard = false
     }
 
     val editingRecord = recordId?.let { id -> data.records.firstOrNull { it.id == id } }
@@ -119,6 +126,8 @@ fun AddRecordScreen(
         when {
             showNumberKeyboard -> hideNumberKeyboard()
             showCategoryPicker -> showCategoryPicker = false
+            showDatePicker -> showDatePicker = false
+            showTimePicker -> showTimePicker = false
             else -> onBack()
         }
     }
@@ -256,6 +265,11 @@ fun AddRecordScreen(
             }
 
             if (topTab == AddTopTab.TEMPLATE) {
+                item {
+                    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
+                        Button(onClick = onCreateTemplate) { Text("新建") }
+                    }
+                }
                 item { TemplateSection("支出模板", data.templates.filter { it.type == RecordType.EXPENSE }.sortedBy { it.name }, data.categories.associateBy { it.id }, data.members.associateBy { it.id }, ::applyTemplate) }
                 item { TemplateSection("收入模板", data.templates.filter { it.type == RecordType.INCOME }.sortedBy { it.name }, data.categories.associateBy { it.id }, data.members.associateBy { it.id }, ::applyTemplate) }
             } else {
@@ -280,14 +294,19 @@ fun AddRecordScreen(
                             hideNumberKeyboard()
                             selectedMemberId = it
                         },
-                        dateTime = dateTime,
-                        onOpenDateTimePicker = {
+                        date = datePart(dateTime),
+                        time = timePart(dateTime),
+                        onOpenDatePicker = {
                             hideNumberKeyboard()
-                            showDateTimePicker = true
+                            showDatePicker = true
+                        },
+                        onOpenTimePicker = {
+                            hideNumberKeyboard()
+                            showTimePicker = true
                         },
                         remark = remark,
                         onRemarkChange = { remark = it },
-                        onRemarkFocus = { hideNumberKeyboard() },
+                        onRemarkFocus = { dismissNumberKeyboard() },
                         message = message,
                         error = error,
                         onSaveTemplate = {
@@ -342,13 +361,23 @@ fun AddRecordScreen(
         }
     }
 
-    if (showDateTimePicker) {
-        DateTimePickerDialog(
-            initialValue = dateTime,
-            onDismiss = { showDateTimePicker = false },
+    if (showDatePicker) {
+        DatePickerDialog(
+            initialDate = datePart(dateTime),
+            onDismiss = { showDatePicker = false },
             onConfirm = {
-                dateTime = it
-                showDateTimePicker = false
+                dateTime = "$it ${timePart(dateTime)}"
+                showDatePicker = false
+            }
+        )
+    }
+    if (showTimePicker) {
+        TimePickerDialog(
+            initialTime = timePart(dateTime),
+            onDismiss = { showTimePicker = false },
+            onConfirm = {
+                dateTime = "${datePart(dateTime)} $it"
+                showTimePicker = false
             }
         )
     }
@@ -370,8 +399,10 @@ private fun RecordFormCard(
     members: List<Member>,
     selectedMemberId: String,
     onMemberSelected: (String) -> Unit,
-    dateTime: String,
-    onOpenDateTimePicker: () -> Unit,
+    date: String,
+    time: String,
+    onOpenDatePicker: () -> Unit,
+    onOpenTimePicker: () -> Unit,
     remark: String,
     onRemarkChange: (String) -> Unit,
     onRemarkFocus: () -> Unit,
@@ -427,17 +458,14 @@ private fun RecordFormCard(
             }
 
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                Text("日期：", fontWeight = FontWeight.SemiBold)
+                OutlinedButton(modifier = Modifier.weight(1f), onClick = onOpenDatePicker) {
+                    Text(date)
+                }
                 Text("时间：", fontWeight = FontWeight.SemiBold)
-                OutlinedTextField(
-                    value = dateTime,
-                    onValueChange = {},
-                    readOnly = true,
-                    singleLine = true,
-                    modifier = Modifier
-                        .weight(1f)
-                        .onFocusChanged { if (it.isFocused) onOpenDateTimePicker() }
-                        .clickable(onClick = onOpenDateTimePicker)
-                )
+                OutlinedButton(modifier = Modifier.weight(1f), onClick = onOpenTimePicker) {
+                    Text(time)
+                }
             }
 
             OutlinedTextField(
@@ -517,3 +545,9 @@ private fun appendRemarkLine(current: String, line: String): String {
         if (existing == cleanLine || existing.lines().contains(cleanLine)) existing else "$existing\n$cleanLine"
     }
 }
+
+private fun datePart(dateTime: String): String =
+    dateTime.split(" ").getOrNull(0)?.takeIf { it.isNotBlank() } ?: DateTimeUtil.formatDate(DateTimeUtil.now())
+
+private fun timePart(dateTime: String): String =
+    dateTime.split(" ").getOrNull(1)?.takeIf { it.isNotBlank() } ?: DateTimeUtil.formatTime(DateTimeUtil.now())

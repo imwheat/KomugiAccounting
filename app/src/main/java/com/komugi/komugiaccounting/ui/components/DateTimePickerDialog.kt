@@ -16,8 +16,10 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.viewinterop.AndroidView
 import androidx.compose.ui.unit.dp
 import com.komugi.komugiaccounting.util.DateTimeUtil
+import java.util.Calendar
 
 @Composable
 fun DateTimePickerDialog(
@@ -71,6 +73,114 @@ fun DateTimePickerDialog(
             Button(
                 enabled = error == null,
                 onClick = { onConfirm(combined) }
+            ) { Text("确认") }
+        },
+        dismissButton = {
+            OutlinedButton(onClick = onDismiss) { Text("取消") }
+        }
+    )
+}
+
+@Composable
+fun DatePickerDialog(
+    initialDate: String,
+    onDismiss: () -> Unit,
+    onConfirm: (String) -> Unit
+) {
+    val initialTime = DateTimeUtil.parseDate(initialDate) ?: DateTimeUtil.startOfDay()
+    val calendar = Calendar.getInstance().apply { timeInMillis = initialTime }
+    var year by rememberSaveable(initialDate) { mutableStateOf(calendar.get(Calendar.YEAR)) }
+    var month by rememberSaveable(initialDate) { mutableStateOf(calendar.get(Calendar.MONTH)) }
+    var day by rememberSaveable(initialDate) { mutableStateOf(calendar.get(Calendar.DAY_OF_MONTH)) }
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("选择日期") },
+        text = {
+            AndroidView(
+                modifier = Modifier.fillMaxWidth(),
+                factory = { context ->
+                    android.widget.DatePicker(context).apply {
+                        init(year, month, day) { _, selectedYear, selectedMonth, selectedDay ->
+                            year = selectedYear
+                            month = selectedMonth
+                            day = selectedDay
+                        }
+                    }
+                },
+                update = { picker ->
+                    picker.updateDate(year, month, day)
+                }
+            )
+        },
+        confirmButton = {
+            Button(
+                onClick = {
+                    val selected = Calendar.getInstance().apply {
+                        set(Calendar.YEAR, year)
+                        set(Calendar.MONTH, month)
+                        set(Calendar.DAY_OF_MONTH, day)
+                        set(Calendar.HOUR_OF_DAY, 0)
+                        set(Calendar.MINUTE, 0)
+                        set(Calendar.SECOND, 0)
+                        set(Calendar.MILLISECOND, 0)
+                    }
+                    onConfirm(DateTimeUtil.formatDate(selected.timeInMillis))
+                }
+            ) { Text("确认") }
+        },
+        dismissButton = {
+            OutlinedButton(onClick = onDismiss) { Text("取消") }
+        }
+    )
+}
+
+@Composable
+fun TimePickerDialog(
+    initialTime: String,
+    onDismiss: () -> Unit,
+    onConfirm: (String) -> Unit
+) {
+    val parts = initialTime.split(":")
+    var hour by rememberSaveable(initialTime) { mutableStateOf(parts.getOrNull(0)?.toIntOrNull()?.coerceIn(0, 23) ?: 0) }
+    var minute by rememberSaveable(initialTime) { mutableStateOf(parts.getOrNull(1)?.toIntOrNull()?.coerceIn(0, 59) ?: 0) }
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("选择时间") },
+        text = {
+            AndroidView(
+                modifier = Modifier.fillMaxWidth(),
+                factory = { context ->
+                    android.widget.LinearLayout(context).apply {
+                        orientation = android.widget.LinearLayout.HORIZONTAL
+                        gravity = android.view.Gravity.CENTER
+                        val hourPicker = android.widget.NumberPicker(context).apply {
+                            minValue = 0
+                            maxValue = 23
+                            value = hour
+                            displayedValues = (0..23).map { it.toString().padStart(2, '0') }.toTypedArray()
+                            setOnValueChangedListener { _, _, newValue -> hour = newValue }
+                        }
+                        val minutePicker = android.widget.NumberPicker(context).apply {
+                            minValue = 0
+                            maxValue = 59
+                            value = minute
+                            displayedValues = (0..59).map { it.toString().padStart(2, '0') }.toTypedArray()
+                            setOnValueChangedListener { _, _, newValue -> minute = newValue }
+                        }
+                        addView(hourPicker)
+                        addView(minutePicker)
+                    }
+                },
+                update = {}
+            )
+        },
+        confirmButton = {
+            Button(
+                onClick = {
+                    onConfirm("${hour.toString().padStart(2, '0')}:${minute.toString().padStart(2, '0')}")
+                }
             ) { Text("确认") }
         },
         dismissButton = {

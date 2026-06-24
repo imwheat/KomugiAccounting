@@ -65,6 +65,7 @@ fun AccountingApp(repository: AppDataRepository) {
     var editingRecordId by remember { mutableStateOf<String?>(null) }
     var pendingHomePage by remember { mutableStateOf<Int?>(null) }
     var pendingAutoBookTodoId by remember { mutableStateOf<String?>(null) }
+    var openTemplateCreate by remember { mutableStateOf(false) }
     var showHomeBottomBar by remember { mutableStateOf(true) }
     var showAutomationBottomBar by remember { mutableStateOf(true) }
     var showSettingsBottomBar by remember { mutableStateOf(true) }
@@ -155,7 +156,9 @@ fun AccountingApp(repository: AppDataRepository) {
                 )
                 Screen.Template -> TemplateScreen(
                     repository = repository,
-                    onBack = ::navigateBack
+                    onBack = ::navigateBack,
+                    initialCreate = openTemplateCreate,
+                    onInitialCreateConsumed = { openTemplateCreate = false }
                 )
                 Screen.Automation -> AutomationScreen(
                     repository = repository,
@@ -186,7 +189,11 @@ fun AccountingApp(repository: AppDataRepository) {
                     onBack = ::navigateBack,
                     recordId = editingRecordId,
                     autoBookTodoId = pendingAutoBookTodoId,
-                    onAutoBookTodoChange = { pendingAutoBookTodoId = it }
+                    onAutoBookTodoChange = { pendingAutoBookTodoId = it },
+                    onCreateTemplate = {
+                        openTemplateCreate = true
+                        navigateTo(Screen.Template)
+                    }
                 )
                 Screen.Settings -> SettingsScreen(
                     repository = repository,
