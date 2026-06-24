@@ -220,9 +220,10 @@ private fun AutoBookRuleListScreen(
     val context = LocalContext.current
     val data by repository.data.collectAsState()
     var showPermissionDialog by rememberSaveable { mutableStateOf(false) }
+    val listenerEnabled = context.isNotificationListenerEnabled()
 
-    LaunchedEffect(Unit) {
-        showPermissionDialog = !context.isNotificationListenerEnabled()
+    LaunchedEffect(listenerEnabled) {
+        showPermissionDialog = !listenerEnabled
     }
 
     LazyColumn(modifier = modifier.padding(18.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
@@ -241,6 +242,13 @@ private fun AutoBookRuleListScreen(
                     Button(onClick = onCreate) { Text("新建") }
                 }
             }
+        }
+        item {
+            Text(
+                text = if (listenerEnabled) "通知使用权：已开启" else "通知使用权：未开启，自动记账无法读取新通知",
+                color = if (listenerEnabled) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.error,
+                modifier = Modifier.padding(horizontal = 4.dp)
+            )
         }
         if (data.autoBookRules.isEmpty()) {
             item { Text("还没有规则。", color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(12.dp)) }
@@ -655,6 +663,9 @@ private fun AutomationFrequency.label(month: Int, day: Int): String = when (this
 
 private fun Context.isNotificationListenerEnabled(): Boolean {
     val enabledListeners = Settings.Secure.getString(contentResolver, "enabled_notification_listeners").orEmpty()
-    val serviceName = ComponentName(this, NotificationAutoBookService::class.java).flattenToString()
-    return enabledListeners.split(":").any { it.equals(serviceName, ignoreCase = true) }
+    val target = ComponentName(this, NotificationAutoBookService::class.java)
+    return enabledListeners
+        .split(":")
+        .mapNotNull { ComponentName.unflattenFromString(it) }
+        .any { it.packageName == target.packageName && it.className == target.className }
 }
