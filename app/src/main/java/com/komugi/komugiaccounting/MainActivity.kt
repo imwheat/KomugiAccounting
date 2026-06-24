@@ -67,6 +67,7 @@ fun AccountingApp(repository: AppDataRepository) {
     var pendingAutoBookTodoId by remember { mutableStateOf<String?>(null) }
     var openTemplateCreate by remember { mutableStateOf(false) }
     var templateCreateOpenedFromAdd by remember { mutableStateOf(false) }
+    var quickAddAutoBookTodoId by remember { mutableStateOf<String?>(null) }
     var showHomeBottomBar by remember { mutableStateOf(true) }
     var showAutomationBottomBar by remember { mutableStateOf(true) }
     var showSettingsBottomBar by remember { mutableStateOf(true) }
@@ -98,6 +99,12 @@ fun AccountingApp(repository: AppDataRepository) {
     fun goHome() {
         previousScreens = emptyList()
         currentScreen = Screen.Home
+    }
+
+    fun returnToAutomationTodoList() {
+        openAutomationTodoList = true
+        automationTodoOpenedFromHome = false
+        navigateBack()
     }
 
     BackHandler(enabled = currentScreen != Screen.Home) {
@@ -164,6 +171,20 @@ fun AccountingApp(repository: AppDataRepository) {
                     onInitialCreateFinished = {
                         templateCreateOpenedFromAdd = false
                         navigateBack()
+                    },
+                    autoBookTodoIdForSelect = quickAddAutoBookTodoId,
+                    onAutoBookTemplateSelected = { templateId ->
+                        val todoId = quickAddAutoBookTodoId
+                        if (todoId != null) {
+                            val message = repository.addAutoBookTodoWithTemplate(todoId, templateId) ?: "已快捷加入"
+                            quickAddAutoBookTodoId = null
+                            returnToAutomationTodoList()
+                            coroutineScope.launch { snackbarHostState.showSnackbar(message) }
+                        }
+                    },
+                    onAutoBookTemplateSelectionBack = {
+                        quickAddAutoBookTodoId = null
+                        returnToAutomationTodoList()
                     }
                 )
                 Screen.Automation -> AutomationScreen(
@@ -173,6 +194,10 @@ fun AccountingApp(repository: AppDataRepository) {
                         editingRecordId = null
                         pendingAutoBookTodoId = todoId
                         navigateTo(Screen.Add)
+                    },
+                    onQuickAddAutoBookTodo = { todoId ->
+                        quickAddAutoBookTodoId = todoId
+                        navigateTo(Screen.Template)
                     },
                     initialTodoList = openAutomationTodoList,
                     onInitialTodoListConsumed = { openAutomationTodoList = false },

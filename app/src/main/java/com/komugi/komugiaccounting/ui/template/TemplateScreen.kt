@@ -1,6 +1,7 @@
 package com.komugi.komugiaccounting.ui.template
 
 import androidx.activity.compose.BackHandler
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
@@ -49,10 +50,14 @@ fun TemplateScreen(
     onInitialCreateConsumed: () -> Unit = {},
     returnToPreviousAfterInitialCreate: Boolean = false,
     onInitialCreateFinished: () -> Unit = {},
+    autoBookTodoIdForSelect: String? = null,
+    onAutoBookTemplateSelected: (String) -> Unit = {},
+    onAutoBookTemplateSelectionBack: () -> Unit = onBack,
     modifier: Modifier = Modifier
 ) {
     var editingTemplateId by rememberSaveable { mutableStateOf<String?>(null) }
     var isEditing by rememberSaveable { mutableStateOf(false) }
+    val isAutoBookSelection = autoBookTodoIdForSelect != null
 
     LaunchedEffect(initialCreate) {
         if (initialCreate) {
@@ -60,6 +65,10 @@ fun TemplateScreen(
             isEditing = true
             onInitialCreateConsumed()
         }
+    }
+
+    BackHandler(enabled = isAutoBookSelection) {
+        onAutoBookTemplateSelectionBack()
     }
 
     BackHandler(enabled = isEditing) {
@@ -96,6 +105,9 @@ fun TemplateScreen(
                 editingTemplateId = template.id
                 isEditing = true
             },
+            autoBookTodoIdForSelect = autoBookTodoIdForSelect,
+            onAutoBookTemplateSelected = onAutoBookTemplateSelected,
+            onAutoBookTemplateSelectionBack = onAutoBookTemplateSelectionBack,
             modifier = modifier
         )
     }
@@ -106,12 +118,16 @@ private fun TemplateListScreen(
     repository: AppDataRepository,
     onCreate: () -> Unit,
     onEdit: (Template) -> Unit,
+    autoBookTodoIdForSelect: String? = null,
+    onAutoBookTemplateSelected: (String) -> Unit = {},
+    onAutoBookTemplateSelectionBack: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     val data by repository.data.collectAsState()
     var pendingDeleteId by rememberSaveable { mutableStateOf<String?>(null) }
     val categories = data.categories.associateBy { it.id }
     val members = data.members.associateBy { it.id }
+    val selectionTodo = autoBookTodoIdForSelect?.let { id -> data.autoBookTodos.firstOrNull { it.id == id } }
 
     LazyColumn(
         modifier = modifier.padding(18.dp),
@@ -123,32 +139,68 @@ private fun TemplateListScreen(
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Text("模板管理", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Black)
-                Button(onClick = onCreate) { Text("新建") }
+                Row(horizontalArrangement = Arrangement.spacedBy(10.dp), verticalAlignment = Alignment.CenterVertically) {
+                    if (selectionTodo != null) {
+                        OutlinedButton(onClick = onAutoBookTemplateSelectionBack) { Text("<") }
+                    }
+                    Text(
+                        if (selectionTodo == null) "模板管理" else "选择模板",
+                        style = MaterialTheme.typography.headlineSmall,
+                        fontWeight = FontWeight.Black
+                    )
+                }
+                if (selectionTodo == null) {
+                    Button(onClick = onCreate) { Text("新建") }
+                }
             }
         }
-        templateSection(
-            title = "支出模板",
-            templates = data.templates.filter { it.type == RecordType.EXPENSE }.sortedBy { it.name },
-            allTemplatesEmpty = data.templates.isEmpty(),
-            categories = categories,
-            members = members,
-            pendingDeleteId = pendingDeleteId,
-            onPendingDeleteChange = { pendingDeleteId = it },
-            onEdit = onEdit,
-            onDelete = { repository.deleteTemplate(it.id) }
-        )
-        templateSection(
-            title = "收入模板",
-            templates = data.templates.filter { it.type == RecordType.INCOME }.sortedBy { it.name },
-            allTemplatesEmpty = data.templates.isEmpty(),
-            categories = categories,
-            members = members,
-            pendingDeleteId = pendingDeleteId,
-            onPendingDeleteChange = { pendingDeleteId = it },
-            onEdit = onEdit,
-            onDelete = { repository.deleteTemplate(it.id) }
-        )
+        if (selectionTodo == null) {
+            templateSection(
+                title = "支出模板",
+                templates = data.templates.filter { it.type == RecordType.EXPENSE }.sortedBy { it.name },
+                allTemplatesEmpty = data.templates.isEmpty(),
+                categories = categories,
+                members = members,
+                pendingDeleteId = pendingDeleteId,
+                onPendingDeleteChange = { pendingDeleteId = it },
+                onEdit = onEdit,
+                onDelete = { repository.deleteTemplate(it.id) }
+            )
+            templateSection(
+                title = "收入模板",
+                templates = data.templates.filter { it.type == RecordType.INCOME }.sortedBy { it.name },
+                allTemplatesEmpty = data.templates.isEmpty(),
+                categories = categories,
+                members = members,
+                pendingDeleteId = pendingDeleteId,
+                onPendingDeleteChange = { pendingDeleteId = it },
+                onEdit = onEdit,
+                onDelete = { repository.deleteTemplate(it.id) }
+            )
+        } else {
+            val orderedTemplates = data.templates
+                .filter { it.type == selectionTodo.type }
+                .sortedWith(compareByDescending<Template> { it.amount == selectionTodo.amount }.thenBy { it.name })
+            item {
+                Text(
+                    "金额匹配的模板会排在最上面。",
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.padding(horizontal = 4.dp)
+                )
+            }
+            templateSection(
+                title = if (selectionTodo.type == RecordType.EXPENSE) "支出模板" else "收入模板",
+                templates = orderedTemplates,
+                allTemplatesEmpty = data.templates.isEmpty(),
+                categories = categories,
+                members = members,
+                pendingDeleteId = pendingDeleteId,
+                onPendingDeleteChange = { pendingDeleteId = it },
+                onEdit = onEdit,
+                onDelete = { repository.deleteTemplate(it.id) },
+                onSelect = { onAutoBookTemplateSelected(it.id) }
+            )
+        }
     }
 }
 
@@ -161,7 +213,8 @@ private fun androidx.compose.foundation.lazy.LazyListScope.templateSection(
     pendingDeleteId: String?,
     onPendingDeleteChange: (String?) -> Unit,
     onEdit: (Template) -> Unit,
-    onDelete: (Template) -> Unit
+    onDelete: (Template) -> Unit,
+    onSelect: ((Template) -> Unit)? = null
 ) {
     item { Text(title, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold) }
     if (templates.isEmpty()) {
@@ -184,7 +237,8 @@ private fun androidx.compose.foundation.lazy.LazyListScope.templateSection(
                     } else {
                         onPendingDeleteChange(template.id)
                     }
-                }
+                },
+                onSelect = onSelect?.let { select -> { select(template) } }
             )
         }
     }
@@ -197,9 +251,13 @@ private fun TemplateCard(
     memberName: String,
     pendingDelete: Boolean,
     onEdit: () -> Unit,
-    onDelete: () -> Unit
+    onDelete: () -> Unit,
+    onSelect: (() -> Unit)? = null
 ) {
-    Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)) {
+    Card(
+        modifier = if (onSelect == null) Modifier else Modifier.fillMaxWidth().clickable(onClick = onSelect),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
+    ) {
         Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
             Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
                 Text(template.name, fontWeight = FontWeight.Bold)
@@ -207,9 +265,11 @@ private fun TemplateCard(
             }
             Text("$categoryName · $memberName", color = MaterialTheme.colorScheme.onSurfaceVariant)
             if (template.remark.isNotBlank()) Text(template.remark)
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                OutlinedButton(onClick = onEdit) { Text("编辑") }
-                OutlinedButton(onClick = onDelete) { Text(if (pendingDelete) "确认删除" else "删除") }
+            if (onSelect == null) {
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    OutlinedButton(onClick = onEdit) { Text("编辑") }
+                    OutlinedButton(onClick = onDelete) { Text(if (pendingDelete) "确认删除" else "删除") }
+                }
             }
         }
     }

@@ -485,7 +485,7 @@ class AppDataRepository private constructor(context: Context) {
             amount = todo.amount,
             categoryId = template.categoryId,
             memberId = template.memberId,
-            remark = template.remark.ifBlank { todo.ruleName },
+            remark = combineTemplateAndAutoBookRemark(template.remark, todo.ruleName),
             dateTime = todo.dateTime,
             createdAt = now,
             updatedAt = now
@@ -500,6 +500,12 @@ class AppDataRepository private constructor(context: Context) {
     }
 
     fun removeAutoBookTodo(todoId: String) = ignoreAutoBookTodo(todoId)
+
+    private fun combineTemplateAndAutoBookRemark(templateRemark: String, ruleName: String): String =
+        listOf(templateRemark.trim(), ruleName.trim())
+            .filter { it.isNotBlank() }
+            .distinct()
+            .joinToString("\n")
 
     fun runDueAutomationRules() {
         update { current ->

@@ -76,6 +76,7 @@ fun AutomationScreen(
     repository: AppDataRepository,
     onBottomBarVisibleChange: (Boolean) -> Unit,
     onEditAutoBookTodo: (String) -> Unit = {},
+    onQuickAddAutoBookTodo: (String) -> Unit = {},
     initialTodoList: Boolean = false,
     onInitialTodoListConsumed: () -> Unit = {},
     initialTodoListBackToPreviousScreen: Boolean = false,
@@ -125,6 +126,7 @@ fun AutomationScreen(
         AutomationPage.TodoList -> AutoBookTodoListScreen(
             repository = repository,
             onEditTodo = onEditAutoBookTodo,
+            onQuickAddTodo = onQuickAddAutoBookTodo,
             onBack = {
                 if (initialTodoListBackToPreviousScreen) onInitialTodoListBack() else page = AutomationPage.Main
             },
@@ -521,7 +523,13 @@ private fun AutoBookNotificationLogCard(log: AutoBookNotificationLog) {
 }
 
 @Composable
-private fun AutoBookTodoListScreen(repository: AppDataRepository, onEditTodo: (String) -> Unit, onBack: () -> Unit, modifier: Modifier = Modifier) {
+private fun AutoBookTodoListScreen(
+    repository: AppDataRepository,
+    onEditTodo: (String) -> Unit,
+    onQuickAddTodo: (String) -> Unit,
+    onBack: () -> Unit,
+    modifier: Modifier = Modifier
+) {
     val data by repository.data.collectAsState()
     val listenerEnabled = NotificationListenerPermissionPrompt()
     LazyColumn(modifier = modifier.padding(18.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
@@ -538,17 +546,20 @@ private fun AutoBookTodoListScreen(repository: AppDataRepository, onEditTodo: (S
             item { Text("没有待处理。", color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(12.dp)) }
         } else {
             items(data.autoBookTodos, key = { it.id }) { todo ->
-                AutoBookTodoCard(todo = todo, templates = data.templates, repository = repository, onEditTodo = onEditTodo)
+                AutoBookTodoCard(todo = todo, repository = repository, onQuickAddTodo = onQuickAddTodo, onEditTodo = onEditTodo)
             }
         }
     }
 }
 
 @Composable
-private fun AutoBookTodoCard(todo: AutoBookTodo, templates: List<Template>, repository: AppDataRepository, onEditTodo: (String) -> Unit) {
+private fun AutoBookTodoCard(
+    todo: AutoBookTodo,
+    repository: AppDataRepository,
+    onQuickAddTodo: (String) -> Unit,
+    onEditTodo: (String) -> Unit
+) {
     val color = if (todo.type == RecordType.INCOME) Color(0xFF1F7A4D) else Color(0xFFB3542E)
-    var showTemplates by rememberSaveable(todo.id) { mutableStateOf(false) }
-    val matchedTemplates = templates.filter { it.type == todo.type && it.amount == todo.amount }
     Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)) {
         Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
@@ -558,20 +569,8 @@ private fun AutoBookTodoCard(todo: AutoBookTodo, templates: List<Template>, repo
             Text(DateTimeUtil.formatDisplayDateTime(todo.dateTime), color = MaterialTheme.colorScheme.onSurfaceVariant)
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 OutlinedButton(onClick = { repository.ignoreAutoBookTodo(todo.id) }) { Text("忽略") }
-                OutlinedButton(onClick = { showTemplates = !showTemplates }) { Text("快捷加入") }
+                OutlinedButton(onClick = { onQuickAddTodo(todo.id) }) { Text("快捷加入") }
                 OutlinedButton(onClick = { onEditTodo(todo.id) }) { Text("编辑加入") }
-            }
-            if (showTemplates) {
-                if (matchedTemplates.isEmpty()) {
-                    Text("没有匹配金额和类型的模板。", color = MaterialTheme.colorScheme.onSurfaceVariant)
-                } else {
-                    matchedTemplates.forEach { template ->
-                        OutlinedButton(
-                            modifier = Modifier.fillMaxWidth(),
-                            onClick = { repository.addAutoBookTodoWithTemplate(todo.id, template.id) }
-                        ) { Text(template.name) }
-                    }
-                }
             }
         }
     }
