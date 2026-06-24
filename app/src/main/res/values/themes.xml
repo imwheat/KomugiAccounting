@@ -9,4 +9,12 @@
         <item name="android:windowActionBar">false</item>
         <item name="android:windowFullscreen">true</item>
     </style>
+
+    <style name="Theme.KomugiAccounting.Picker" parent="@android:style/Theme.Material.Light.NoActionBar">
+        <item name="android:colorAccent">#6650A4</item>
+        <item name="android:colorControlActivated">#6650A4</item>
+        <item name="android:colorControlHighlight">#D0BCFF</item>
+        <item name="android:textColorPrimary">#FFFFFF</item>
+        <item name="android:textColorSecondary">#D0BCFF</item>
+    </style>
 </resources>

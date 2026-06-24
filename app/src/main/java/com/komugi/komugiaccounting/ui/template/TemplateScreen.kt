@@ -47,6 +47,8 @@ fun TemplateScreen(
     onBack: () -> Unit,
     initialCreate: Boolean = false,
     onInitialCreateConsumed: () -> Unit = {},
+    returnToPreviousAfterInitialCreate: Boolean = false,
+    onInitialCreateFinished: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     var editingTemplateId by rememberSaveable { mutableStateOf<String?>(null) }
@@ -61,8 +63,12 @@ fun TemplateScreen(
     }
 
     BackHandler(enabled = isEditing) {
-        isEditing = false
-        editingTemplateId = null
+        if (returnToPreviousAfterInitialCreate && editingTemplateId == null) {
+            onInitialCreateFinished()
+        } else {
+            isEditing = false
+            editingTemplateId = null
+        }
     }
 
     if (isEditing) {
@@ -70,8 +76,12 @@ fun TemplateScreen(
             repository = repository,
             templateId = editingTemplateId,
             onBack = {
-                isEditing = false
-                editingTemplateId = null
+                if (returnToPreviousAfterInitialCreate && editingTemplateId == null) {
+                    onInitialCreateFinished()
+                } else {
+                    isEditing = false
+                    editingTemplateId = null
+                }
             },
             modifier = modifier
         )

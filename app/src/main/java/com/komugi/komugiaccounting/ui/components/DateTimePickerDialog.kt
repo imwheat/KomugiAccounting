@@ -1,5 +1,6 @@
 package com.komugi.komugiaccounting.ui.components
 
+import android.view.ContextThemeWrapper
 import android.view.View
 import android.view.ViewGroup
 import android.widget.NumberPicker
@@ -23,6 +24,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.compose.ui.unit.dp
+import com.komugi.komugiaccounting.R
 import com.komugi.komugiaccounting.util.DateTimeUtil
 import java.util.Calendar
 
@@ -110,7 +112,7 @@ fun DatePickerDialog(
             AndroidView(
                 modifier = Modifier.fillMaxWidth(),
                 factory = { context ->
-                    android.widget.DatePicker(context).apply {
+                    android.widget.DatePicker(ContextThemeWrapper(context, R.style.Theme_KomugiAccounting_Picker)).apply {
                         setBackgroundColor(containerColor.toArgb())
                         setPickerTextColor(contentColor.toArgb())
                         init(year, month, day) { _, selectedYear, selectedMonth, selectedDay ->
@@ -118,11 +120,13 @@ fun DatePickerDialog(
                             month = selectedMonth
                             day = selectedDay
                         }
+                        post { setPickerTextColor(contentColor.toArgb()) }
                     }
                 },
                 update = { picker ->
                     picker.setBackgroundColor(containerColor.toArgb())
                     picker.setPickerTextColor(contentColor.toArgb())
+                    picker.post { picker.setPickerTextColor(contentColor.toArgb()) }
                     picker.updateDate(year, month, day)
                 }
             )
@@ -171,11 +175,12 @@ fun TimePickerDialog(
             AndroidView(
                 modifier = Modifier.fillMaxWidth(),
                 factory = { context ->
-                    android.widget.LinearLayout(context).apply {
+                    val themedContext = ContextThemeWrapper(context, R.style.Theme_KomugiAccounting_Picker)
+                    android.widget.LinearLayout(themedContext).apply {
                         orientation = android.widget.LinearLayout.HORIZONTAL
                         gravity = android.view.Gravity.CENTER
                         setBackgroundColor(containerColor.toArgb())
-                        val hourPicker = android.widget.NumberPicker(context).apply {
+                        val hourPicker = android.widget.NumberPicker(themedContext).apply {
                             minValue = 0
                             maxValue = 23
                             value = hour
@@ -183,7 +188,7 @@ fun TimePickerDialog(
                             setPickerTextColor(contentColor.toArgb())
                             setOnValueChangedListener { _, _, newValue -> hour = newValue }
                         }
-                        val minutePicker = android.widget.NumberPicker(context).apply {
+                        val minutePicker = android.widget.NumberPicker(themedContext).apply {
                             minValue = 0
                             maxValue = 59
                             value = minute
@@ -193,11 +198,13 @@ fun TimePickerDialog(
                         }
                         addView(hourPicker)
                         addView(minutePicker)
+                        post { setPickerTextColor(contentColor.toArgb()) }
                     }
                 },
                 update = { picker ->
                     picker.setBackgroundColor(containerColor.toArgb())
                     picker.setPickerTextColor(contentColor.toArgb())
+                    picker.post { picker.setPickerTextColor(contentColor.toArgb()) }
                 }
             )
         },
