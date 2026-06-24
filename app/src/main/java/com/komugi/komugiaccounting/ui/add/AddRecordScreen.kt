@@ -3,11 +3,14 @@ package com.komugi.komugiaccounting.ui.add
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.FlowRow
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
@@ -19,6 +22,7 @@ import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.FilterChip
+import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
@@ -35,7 +39,9 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import com.komugi.komugiaccounting.data.model.Category
 import com.komugi.komugiaccounting.data.model.Member
 import com.komugi.komugiaccounting.data.model.RecordType
@@ -221,130 +227,137 @@ fun AddRecordScreen(
             modifier = modifier
         )
     } else {
-        LazyColumn(
-            modifier = modifier.padding(horizontal = 18.dp),
-            verticalArrangement = Arrangement.spacedBy(14.dp)
-        ) {
-            item { Spacer(Modifier.height(10.dp)) }
-            item {
-                Row(horizontalArrangement = Arrangement.spacedBy(10.dp), verticalAlignment = Alignment.CenterVertically) {
-                    OutlinedButton(onClick = {
-                        clearInputFocus()
-                        onBack()
-                    }) { Text("<") }
-                    Text(
-                        if (recordId == null) "记一笔" else "编辑记录",
-                        style = MaterialTheme.typography.headlineMedium,
-                        fontWeight = FontWeight.Black
-                    )
-                }
-            }
-            item {
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    FilterChip(
-                        selected = topTab == AddTopTab.TEMPLATE,
-                        onClick = {
-                            clearInputFocus()
-                            topTab = AddTopTab.TEMPLATE
-                            pendingDelete = false
-                        },
-                        label = { Text("模板") }
-                    )
-                    FilterChip(selected = topTab == AddTopTab.EXPENSE, onClick = { selectType(RecordType.EXPENSE) }, label = { Text("支出") })
-                    FilterChip(selected = topTab == AddTopTab.INCOME, onClick = { selectType(RecordType.INCOME) }, label = { Text("收入") })
-                }
-            }
-
-            if (topTab == AddTopTab.TEMPLATE) {
+        Box(modifier = modifier.fillMaxSize()) {
+            LazyColumn(
+                modifier = Modifier.padding(horizontal = 18.dp),
+                verticalArrangement = Arrangement.spacedBy(14.dp)
+            ) {
+                item { Spacer(Modifier.height(10.dp)) }
                 item {
-                    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
-                        Button(onClick = onCreateTemplate) { Text("新建") }
+                    Row(horizontalArrangement = Arrangement.spacedBy(10.dp), verticalAlignment = Alignment.CenterVertically) {
+                        OutlinedButton(onClick = {
+                            clearInputFocus()
+                            onBack()
+                        }) { Text("<") }
+                        Text(
+                            if (recordId == null) "记一笔" else "编辑记录",
+                            style = MaterialTheme.typography.headlineMedium,
+                            fontWeight = FontWeight.Black
+                        )
                     }
                 }
-                item { TemplateSection("支出模板", data.templates.filter { it.type == RecordType.EXPENSE }.sortedBy { it.name }, data.categories.associateBy { it.id }, data.members.associateBy { it.id }, ::applyTemplate) }
-                item { TemplateSection("收入模板", data.templates.filter { it.type == RecordType.INCOME }.sortedBy { it.name }, data.categories.associateBy { it.id }, data.members.associateBy { it.id }, ::applyTemplate) }
-            } else {
                 item {
-                    RecordFormCard(
-                        recordId = recordId,
-                        isRefunded = editingRecord?.isRefunded == true,
-                        pendingDelete = pendingDelete,
-                        amount = amount,
-                        onAmountChange = { amount = it },
-                        selectedCategory = selectedCategory,
-                        onOpenCategoryPicker = {
-                            clearInputFocus()
-                            showCategoryPicker = true
-                        },
-                        members = members,
-                        selectedMemberId = selectedMemberId,
-                        onMemberSelected = {
-                            clearInputFocus()
-                            selectedMemberId = it
-                        },
-                        date = datePart(dateTime),
-                        time = timePart(dateTime),
-                        onOpenDatePicker = {
-                            clearInputFocus()
-                            showDatePicker = true
-                        },
-                        onOpenTimePicker = {
-                            clearInputFocus()
-                            showTimePicker = true
-                        },
-                        remark = remark,
-                        onRemarkChange = { remark = it },
-                        message = message,
-                        error = error,
-                        onSaveTemplate = {
-                            clearInputFocus()
-                            pendingDelete = false
-                            message = null
-                            error = viewModel.saveTemplate(type, amount, selectedCategoryId, selectedMemberId, remark)
-                            if (error == null) message = "已存为模板"
-                        },
-                        onSaveAndContinue = {
-                            clearInputFocus()
-                            message = null
-                            error = viewModel.saveRecord(type, amount, selectedCategoryId, selectedMemberId, dateTime, remark, null)
-                            if (error == null) afterAutoBookTodoSaved(continueNext = true)
-                        },
-                        onSave = {
-                            clearInputFocus()
-                            pendingDelete = false
-                            message = null
-                            error = viewModel.saveRecord(type, amount, selectedCategoryId, selectedMemberId, dateTime, remark, recordId)
-                            if (error == null) {
-                                autoBookTodoId?.let {
-                                    viewModel.removeAutoBookTodo(it)
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        FilterChip(
+                            selected = topTab == AddTopTab.TEMPLATE,
+                            onClick = {
+                                clearInputFocus()
+                                topTab = AddTopTab.TEMPLATE
+                                pendingDelete = false
+                            },
+                            label = { Text("模板") }
+                        )
+                        FilterChip(selected = topTab == AddTopTab.EXPENSE, onClick = { selectType(RecordType.EXPENSE) }, label = { Text("支出") })
+                        FilterChip(selected = topTab == AddTopTab.INCOME, onClick = { selectType(RecordType.INCOME) }, label = { Text("收入") })
+                    }
+                }
+
+                if (topTab == AddTopTab.TEMPLATE) {
+                    item { TemplateSection("支出模板", data.templates.filter { it.type == RecordType.EXPENSE }.sortedBy { it.name }, data.categories.associateBy { it.id }, data.members.associateBy { it.id }, ::applyTemplate) }
+                    item { TemplateSection("收入模板", data.templates.filter { it.type == RecordType.INCOME }.sortedBy { it.name }, data.categories.associateBy { it.id }, data.members.associateBy { it.id }, ::applyTemplate) }
+                } else {
+                    item {
+                        RecordFormCard(
+                            recordId = recordId,
+                            isRefunded = editingRecord?.isRefunded == true,
+                            pendingDelete = pendingDelete,
+                            amount = amount,
+                            onAmountChange = { amount = it },
+                            selectedCategory = selectedCategory,
+                            onOpenCategoryPicker = {
+                                clearInputFocus()
+                                showCategoryPicker = true
+                            },
+                            members = members,
+                            selectedMemberId = selectedMemberId,
+                            onMemberSelected = {
+                                clearInputFocus()
+                                selectedMemberId = it
+                            },
+                            date = datePart(dateTime),
+                            time = timePart(dateTime),
+                            onOpenDatePicker = {
+                                clearInputFocus()
+                                showDatePicker = true
+                            },
+                            onOpenTimePicker = {
+                                clearInputFocus()
+                                showTimePicker = true
+                            },
+                            remark = remark,
+                            onRemarkChange = { remark = it },
+                            message = message,
+                            error = error,
+                            onSaveTemplate = {
+                                clearInputFocus()
+                                pendingDelete = false
+                                message = null
+                                error = viewModel.saveTemplate(type, amount, selectedCategoryId, selectedMemberId, remark)
+                                if (error == null) message = "已存为模板"
+                            },
+                            onSaveAndContinue = {
+                                clearInputFocus()
+                                message = null
+                                error = viewModel.saveRecord(type, amount, selectedCategoryId, selectedMemberId, dateTime, remark, null)
+                                if (error == null) afterAutoBookTodoSaved(continueNext = true)
+                            },
+                            onSave = {
+                                clearInputFocus()
+                                pendingDelete = false
+                                message = null
+                                error = viewModel.saveRecord(type, amount, selectedCategoryId, selectedMemberId, dateTime, remark, recordId)
+                                if (error == null) {
+                                    autoBookTodoId?.let {
+                                        viewModel.removeAutoBookTodo(it)
+                                    }
+                                    resetBlankForm()
+                                    onSaved(if (recordId == null) "保存成功" else "修改已保存")
+                                    if (autoBookTodoId != null) {
+                                        onAutoBookTodoChange(null)
+                                    }
                                 }
-                                resetBlankForm()
-                                onSaved(if (recordId == null) "保存成功" else "修改已保存")
-                                if (autoBookTodoId != null) {
-                                    onAutoBookTodoChange(null)
+                            },
+                            onToggleRefund = {
+                                val id = recordId ?: return@RecordFormCard
+                                clearInputFocus()
+                                pendingDelete = false
+                                viewModel.setRecordRefunded(id, editingRecord?.isRefunded != true)
+                            },
+                            onDelete = {
+                                val id = recordId ?: return@RecordFormCard
+                                clearInputFocus()
+                                if (pendingDelete) {
+                                    viewModel.deleteRecord(id)
+                                    onSaved("记录已删除")
+                                } else {
+                                    pendingDelete = true
                                 }
                             }
-                        },
-                        onToggleRefund = {
-                            val id = recordId ?: return@RecordFormCard
-                            clearInputFocus()
-                            pendingDelete = false
-                            viewModel.setRecordRefunded(id, editingRecord?.isRefunded != true)
-                        },
-                        onDelete = {
-                            val id = recordId ?: return@RecordFormCard
-                            clearInputFocus()
-                            if (pendingDelete) {
-                                viewModel.deleteRecord(id)
-                                onSaved("记录已删除")
-                            } else {
-                                pendingDelete = true
-                            }
-                        }
-                    )
+                        )
+                    }
+                }
+                item { Spacer(Modifier.height(88.dp)) }
+            }
+            if (topTab == AddTopTab.TEMPLATE) {
+                FloatingActionButton(
+                    onClick = onCreateTemplate,
+                    modifier = Modifier
+                        .align(Alignment.BottomEnd)
+                        .padding(22.dp)
+                ) {
+                    Text("+", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Black)
                 }
             }
-            item { Spacer(Modifier.height(88.dp)) }
         }
     }
 
@@ -429,14 +442,22 @@ private fun RecordFormCard(
                 }
             }
 
-            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                Text("日期：", fontWeight = FontWeight.SemiBold)
-                OutlinedButton(modifier = Modifier.weight(1f), onClick = onOpenDatePicker) {
-                    Text(date)
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                Text("日期", fontWeight = FontWeight.SemiBold, fontSize = 13.sp, maxLines = 1)
+                OutlinedButton(
+                    modifier = Modifier.weight(1.35f).height(40.dp),
+                    contentPadding = PaddingValues(horizontal = 8.dp, vertical = 0.dp),
+                    onClick = onOpenDatePicker
+                ) {
+                    Text(date, fontSize = 13.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
                 }
-                Text("时间：", fontWeight = FontWeight.SemiBold)
-                OutlinedButton(modifier = Modifier.weight(1f), onClick = onOpenTimePicker) {
-                    Text(time)
+                Text("时间", fontWeight = FontWeight.SemiBold, fontSize = 13.sp, maxLines = 1)
+                OutlinedButton(
+                    modifier = Modifier.weight(1f).height(40.dp),
+                    contentPadding = PaddingValues(horizontal = 8.dp, vertical = 0.dp),
+                    onClick = onOpenTimePicker
+                ) {
+                    Text(time, fontSize = 13.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
                 }
             }
 

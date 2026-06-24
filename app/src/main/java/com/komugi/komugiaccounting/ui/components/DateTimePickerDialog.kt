@@ -1,5 +1,9 @@
 package com.komugi.komugiaccounting.ui.components
 
+import android.view.View
+import android.view.ViewGroup
+import android.widget.NumberPicker
+import android.widget.TextView
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -16,6 +20,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.compose.ui.unit.dp
 import com.komugi.komugiaccounting.util.DateTimeUtil
@@ -92,15 +97,22 @@ fun DatePickerDialog(
     var year by rememberSaveable(initialDate) { mutableStateOf(calendar.get(Calendar.YEAR)) }
     var month by rememberSaveable(initialDate) { mutableStateOf(calendar.get(Calendar.MONTH)) }
     var day by rememberSaveable(initialDate) { mutableStateOf(calendar.get(Calendar.DAY_OF_MONTH)) }
+    val containerColor = MaterialTheme.colorScheme.surface
+    val contentColor = MaterialTheme.colorScheme.onSurface
 
     AlertDialog(
         onDismissRequest = onDismiss,
+        containerColor = containerColor,
+        titleContentColor = contentColor,
+        textContentColor = contentColor,
         title = { Text("选择日期") },
         text = {
             AndroidView(
                 modifier = Modifier.fillMaxWidth(),
                 factory = { context ->
                     android.widget.DatePicker(context).apply {
+                        setBackgroundColor(containerColor.toArgb())
+                        setPickerTextColor(contentColor.toArgb())
                         init(year, month, day) { _, selectedYear, selectedMonth, selectedDay ->
                             year = selectedYear
                             month = selectedMonth
@@ -109,6 +121,8 @@ fun DatePickerDialog(
                     }
                 },
                 update = { picker ->
+                    picker.setBackgroundColor(containerColor.toArgb())
+                    picker.setPickerTextColor(contentColor.toArgb())
                     picker.updateDate(year, month, day)
                 }
             )
@@ -144,9 +158,14 @@ fun TimePickerDialog(
     val parts = initialTime.split(":")
     var hour by rememberSaveable(initialTime) { mutableStateOf(parts.getOrNull(0)?.toIntOrNull()?.coerceIn(0, 23) ?: 0) }
     var minute by rememberSaveable(initialTime) { mutableStateOf(parts.getOrNull(1)?.toIntOrNull()?.coerceIn(0, 59) ?: 0) }
+    val containerColor = MaterialTheme.colorScheme.surface
+    val contentColor = MaterialTheme.colorScheme.onSurface
 
     AlertDialog(
         onDismissRequest = onDismiss,
+        containerColor = containerColor,
+        titleContentColor = contentColor,
+        textContentColor = contentColor,
         title = { Text("选择时间") },
         text = {
             AndroidView(
@@ -155,11 +174,13 @@ fun TimePickerDialog(
                     android.widget.LinearLayout(context).apply {
                         orientation = android.widget.LinearLayout.HORIZONTAL
                         gravity = android.view.Gravity.CENTER
+                        setBackgroundColor(containerColor.toArgb())
                         val hourPicker = android.widget.NumberPicker(context).apply {
                             minValue = 0
                             maxValue = 23
                             value = hour
                             displayedValues = (0..23).map { it.toString().padStart(2, '0') }.toTypedArray()
+                            setPickerTextColor(contentColor.toArgb())
                             setOnValueChangedListener { _, _, newValue -> hour = newValue }
                         }
                         val minutePicker = android.widget.NumberPicker(context).apply {
@@ -167,13 +188,17 @@ fun TimePickerDialog(
                             maxValue = 59
                             value = minute
                             displayedValues = (0..59).map { it.toString().padStart(2, '0') }.toTypedArray()
+                            setPickerTextColor(contentColor.toArgb())
                             setOnValueChangedListener { _, _, newValue -> minute = newValue }
                         }
                         addView(hourPicker)
                         addView(minutePicker)
                     }
                 },
-                update = {}
+                update = { picker ->
+                    picker.setBackgroundColor(containerColor.toArgb())
+                    picker.setPickerTextColor(contentColor.toArgb())
+                }
             )
         },
         confirmButton = {
@@ -187,4 +212,31 @@ fun TimePickerDialog(
             OutlinedButton(onClick = onDismiss) { Text("取消") }
         }
     )
+}
+
+private fun View.setPickerTextColor(color: Int) {
+    when (this) {
+        is TextView -> setTextColor(color)
+        is NumberPicker -> {
+            setTextColorCompat(color)
+            forEachChild { it.setPickerTextColor(color) }
+        }
+        is ViewGroup -> forEachChild { it.setPickerTextColor(color) }
+    }
+}
+
+private fun NumberPicker.setTextColorCompat(color: Int) {
+    runCatching {
+        NumberPicker::class.java.getDeclaredField("mSelectorWheelPaint").apply {
+            isAccessible = true
+            (get(this@setTextColorCompat) as? android.graphics.Paint)?.color = color
+        }
+        invalidate()
+    }
+}
+
+private fun ViewGroup.forEachChild(block: (View) -> Unit) {
+    for (index in 0 until childCount) {
+        block(getChildAt(index))
+    }
 }
