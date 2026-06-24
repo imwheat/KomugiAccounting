@@ -68,6 +68,7 @@ fun AccountingApp(repository: AppDataRepository) {
     var openTemplateCreate by remember { mutableStateOf(false) }
     var templateCreateOpenedFromAdd by remember { mutableStateOf(false) }
     var quickAddAutoBookTodoId by remember { mutableStateOf<String?>(null) }
+    var templateCreateOpenedFromAutoBookSelection by remember { mutableStateOf(false) }
     var showHomeBottomBar by remember { mutableStateOf(true) }
     var showAutomationBottomBar by remember { mutableStateOf(true) }
     var showSettingsBottomBar by remember { mutableStateOf(true) }
@@ -116,6 +117,7 @@ fun AccountingApp(repository: AppDataRepository) {
         bottomBar = {
             if (
                 currentScreen != Screen.Add &&
+                !(currentScreen == Screen.Template && quickAddAutoBookTodoId != null) &&
                 (currentScreen != Screen.Home || showHomeBottomBar) &&
                 (currentScreen != Screen.Automation || showAutomationBottomBar) &&
                 (currentScreen != Screen.Settings || showSettingsBottomBar)
@@ -169,10 +171,21 @@ fun AccountingApp(repository: AppDataRepository) {
                     onInitialCreateConsumed = { openTemplateCreate = false },
                     returnToPreviousAfterInitialCreate = templateCreateOpenedFromAdd,
                     onInitialCreateFinished = {
-                        templateCreateOpenedFromAdd = false
-                        navigateBack()
+                        when {
+                            templateCreateOpenedFromAutoBookSelection -> {
+                                templateCreateOpenedFromAutoBookSelection = false
+                            }
+                            templateCreateOpenedFromAdd -> {
+                                templateCreateOpenedFromAdd = false
+                                navigateBack()
+                            }
+                        }
                     },
                     autoBookTodoIdForSelect = quickAddAutoBookTodoId,
+                    onCreateTemplateFromAutoBookSelection = {
+                        openTemplateCreate = true
+                        templateCreateOpenedFromAutoBookSelection = true
+                    },
                     onAutoBookTemplateSelected = { templateId ->
                         val todoId = quickAddAutoBookTodoId
                         if (todoId != null) {

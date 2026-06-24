@@ -3,10 +3,12 @@ package com.komugi.komugiaccounting.ui.template
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
@@ -16,6 +18,7 @@ import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.FilterChip
+import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
@@ -51,6 +54,7 @@ fun TemplateScreen(
     returnToPreviousAfterInitialCreate: Boolean = false,
     onInitialCreateFinished: () -> Unit = {},
     autoBookTodoIdForSelect: String? = null,
+    onCreateTemplateFromAutoBookSelection: () -> Unit = {},
     onAutoBookTemplateSelected: (String) -> Unit = {},
     onAutoBookTemplateSelectionBack: () -> Unit = onBack,
     modifier: Modifier = Modifier
@@ -106,6 +110,7 @@ fun TemplateScreen(
                 isEditing = true
             },
             autoBookTodoIdForSelect = autoBookTodoIdForSelect,
+            onCreateTemplateFromAutoBookSelection = onCreateTemplateFromAutoBookSelection,
             onAutoBookTemplateSelected = onAutoBookTemplateSelected,
             onAutoBookTemplateSelectionBack = onAutoBookTemplateSelectionBack,
             modifier = modifier
@@ -119,6 +124,7 @@ private fun TemplateListScreen(
     onCreate: () -> Unit,
     onEdit: (Template) -> Unit,
     autoBookTodoIdForSelect: String? = null,
+    onCreateTemplateFromAutoBookSelection: () -> Unit = {},
     onAutoBookTemplateSelected: (String) -> Unit = {},
     onAutoBookTemplateSelectionBack: () -> Unit = {},
     modifier: Modifier = Modifier
@@ -129,77 +135,89 @@ private fun TemplateListScreen(
     val members = data.members.associateBy { it.id }
     val selectionTodo = autoBookTodoIdForSelect?.let { id -> data.autoBookTodos.firstOrNull { it.id == id } }
 
-    LazyColumn(
-        modifier = modifier.padding(18.dp),
-        verticalArrangement = Arrangement.spacedBy(12.dp)
-    ) {
-        item {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Row(horizontalArrangement = Arrangement.spacedBy(10.dp), verticalAlignment = Alignment.CenterVertically) {
-                    if (selectionTodo != null) {
-                        OutlinedButton(onClick = onAutoBookTemplateSelectionBack) { Text("<") }
+    Box(modifier = modifier.fillMaxSize()) {
+        LazyColumn(
+            modifier = Modifier.padding(18.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
+            item {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Row(horizontalArrangement = Arrangement.spacedBy(10.dp), verticalAlignment = Alignment.CenterVertically) {
+                        if (selectionTodo != null) {
+                            OutlinedButton(onClick = onAutoBookTemplateSelectionBack) { Text("<") }
+                        }
+                        Text(
+                            if (selectionTodo == null) "模板管理" else "选择模板",
+                            style = MaterialTheme.typography.headlineSmall,
+                            fontWeight = FontWeight.Black
+                        )
                     }
+                    if (selectionTodo == null) {
+                        Button(onClick = onCreate) { Text("新建") }
+                    }
+                }
+            }
+            if (selectionTodo == null) {
+                templateSection(
+                    title = "支出模板",
+                    templates = data.templates.filter { it.type == RecordType.EXPENSE }.sortedBy { it.name },
+                    allTemplatesEmpty = data.templates.isEmpty(),
+                    categories = categories,
+                    members = members,
+                    pendingDeleteId = pendingDeleteId,
+                    onPendingDeleteChange = { pendingDeleteId = it },
+                    onEdit = onEdit,
+                    onDelete = { repository.deleteTemplate(it.id) }
+                )
+                templateSection(
+                    title = "收入模板",
+                    templates = data.templates.filter { it.type == RecordType.INCOME }.sortedBy { it.name },
+                    allTemplatesEmpty = data.templates.isEmpty(),
+                    categories = categories,
+                    members = members,
+                    pendingDeleteId = pendingDeleteId,
+                    onPendingDeleteChange = { pendingDeleteId = it },
+                    onEdit = onEdit,
+                    onDelete = { repository.deleteTemplate(it.id) }
+                )
+            } else {
+                val orderedTemplates = data.templates
+                    .filter { it.type == selectionTodo.type }
+                    .sortedWith(compareByDescending<Template> { it.amount == selectionTodo.amount }.thenBy { it.name })
+                item {
                     Text(
-                        if (selectionTodo == null) "模板管理" else "选择模板",
-                        style = MaterialTheme.typography.headlineSmall,
-                        fontWeight = FontWeight.Black
+                        "金额匹配的模板会排在最上面。",
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.padding(horizontal = 4.dp)
                     )
                 }
-                if (selectionTodo == null) {
-                    Button(onClick = onCreate) { Text("新建") }
-                }
-            }
-        }
-        if (selectionTodo == null) {
-            templateSection(
-                title = "支出模板",
-                templates = data.templates.filter { it.type == RecordType.EXPENSE }.sortedBy { it.name },
-                allTemplatesEmpty = data.templates.isEmpty(),
-                categories = categories,
-                members = members,
-                pendingDeleteId = pendingDeleteId,
-                onPendingDeleteChange = { pendingDeleteId = it },
-                onEdit = onEdit,
-                onDelete = { repository.deleteTemplate(it.id) }
-            )
-            templateSection(
-                title = "收入模板",
-                templates = data.templates.filter { it.type == RecordType.INCOME }.sortedBy { it.name },
-                allTemplatesEmpty = data.templates.isEmpty(),
-                categories = categories,
-                members = members,
-                pendingDeleteId = pendingDeleteId,
-                onPendingDeleteChange = { pendingDeleteId = it },
-                onEdit = onEdit,
-                onDelete = { repository.deleteTemplate(it.id) }
-            )
-        } else {
-            val orderedTemplates = data.templates
-                .filter { it.type == selectionTodo.type }
-                .sortedWith(compareByDescending<Template> { it.amount == selectionTodo.amount }.thenBy { it.name })
-            item {
-                Text(
-                    "金额匹配的模板会排在最上面。",
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    modifier = Modifier.padding(horizontal = 4.dp)
+                templateSection(
+                    title = if (selectionTodo.type == RecordType.EXPENSE) "支出模板" else "收入模板",
+                    templates = orderedTemplates,
+                    allTemplatesEmpty = data.templates.isEmpty(),
+                    categories = categories,
+                    members = members,
+                    pendingDeleteId = pendingDeleteId,
+                    onPendingDeleteChange = { pendingDeleteId = it },
+                    onEdit = onEdit,
+                    onDelete = { repository.deleteTemplate(it.id) },
+                    onSelect = { onAutoBookTemplateSelected(it.id) }
                 )
             }
-            templateSection(
-                title = if (selectionTodo.type == RecordType.EXPENSE) "支出模板" else "收入模板",
-                templates = orderedTemplates,
-                allTemplatesEmpty = data.templates.isEmpty(),
-                categories = categories,
-                members = members,
-                pendingDeleteId = pendingDeleteId,
-                onPendingDeleteChange = { pendingDeleteId = it },
-                onEdit = onEdit,
-                onDelete = { repository.deleteTemplate(it.id) },
-                onSelect = { onAutoBookTemplateSelected(it.id) }
-            )
+        }
+        if (selectionTodo != null) {
+            FloatingActionButton(
+                onClick = onCreateTemplateFromAutoBookSelection,
+                modifier = Modifier
+                    .align(Alignment.BottomEnd)
+                    .padding(22.dp)
+            ) {
+                Text("+", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Black)
+            }
         }
     }
 }
