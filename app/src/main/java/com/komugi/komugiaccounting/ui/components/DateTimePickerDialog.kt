@@ -125,9 +125,9 @@ fun DatePickerDialog(
                 },
                 update = { picker ->
                     picker.setBackgroundColor(containerColor.toArgb())
+                    picker.updateDate(year, month, day)
                     picker.setPickerTextColor(contentColor.toArgb())
                     picker.post { picker.setPickerTextColor(contentColor.toArgb()) }
-                    picker.updateDate(year, month, day)
                 }
             )
         },

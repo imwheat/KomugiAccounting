@@ -14,7 +14,5 @@
         <item name="android:colorAccent">#6650A4</item>
         <item name="android:colorControlActivated">#6650A4</item>
         <item name="android:colorControlHighlight">#D0BCFF</item>
-        <item name="android:textColorPrimary">#FFFFFF</item>
-        <item name="android:textColorSecondary">#D0BCFF</item>
     </style>
 </resources>
