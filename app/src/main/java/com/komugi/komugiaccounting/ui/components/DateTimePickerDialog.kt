@@ -9,19 +9,24 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.graphics.toArgb
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.compose.ui.unit.dp
 import com.komugi.komugiaccounting.R
@@ -101,6 +106,18 @@ fun DatePickerDialog(
     var day by rememberSaveable(initialDate) { mutableStateOf(calendar.get(Calendar.DAY_OF_MONTH)) }
     val containerColor = MaterialTheme.colorScheme.surface
     val contentColor = MaterialTheme.colorScheme.onSurface
+    val selected = Calendar.getInstance().apply {
+        set(Calendar.YEAR, year)
+        set(Calendar.MONTH, month)
+        set(Calendar.DAY_OF_MONTH, day)
+    }
+    val firstDay = Calendar.getInstance().apply {
+        set(Calendar.YEAR, year)
+        set(Calendar.MONTH, month)
+        set(Calendar.DAY_OF_MONTH, 1)
+    }
+    val daysInMonth = firstDay.getActualMaximum(Calendar.DAY_OF_MONTH)
+    val firstOffset = firstDay.get(Calendar.DAY_OF_WEEK) - Calendar.SUNDAY
 
     AlertDialog(
         onDismissRequest = onDismiss,
@@ -109,32 +126,75 @@ fun DatePickerDialog(
         textContentColor = contentColor,
         title = { Text("选择日期") },
         text = {
-            AndroidView(
-                modifier = Modifier.fillMaxWidth(),
-                factory = { context ->
-                    android.widget.DatePicker(ContextThemeWrapper(context, R.style.Theme_KomugiAccounting_Picker)).apply {
-                        setBackgroundColor(containerColor.toArgb())
-                        setPickerTextColor(contentColor.toArgb())
-                        init(year, month, day) { _, selectedYear, selectedMonth, selectedDay ->
-                            year = selectedYear
-                            month = selectedMonth
-                            day = selectedDay
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                    TextButton(onClick = {
+                        val previous = Calendar.getInstance().apply {
+                            set(Calendar.YEAR, year)
+                            set(Calendar.MONTH, month)
+                            set(Calendar.DAY_OF_MONTH, 1)
+                            add(Calendar.MONTH, -1)
                         }
-                        post { setPickerTextColor(contentColor.toArgb()) }
-                    }
-                },
-                update = { picker ->
-                    picker.setBackgroundColor(containerColor.toArgb())
-                    picker.updateDate(year, month, day)
-                    picker.setPickerTextColor(contentColor.toArgb())
-                    picker.post { picker.setPickerTextColor(contentColor.toArgb()) }
+                        year = previous.get(Calendar.YEAR)
+                        month = previous.get(Calendar.MONTH)
+                        day = day.coerceAtMost(previous.getActualMaximum(Calendar.DAY_OF_MONTH))
+                    }) { Text("<") }
+                    Text(
+                        "${year}年${month + 1}月",
+                        color = contentColor,
+                        fontWeight = FontWeight.Bold,
+                        modifier = Modifier.padding(top = 10.dp)
+                    )
+                    TextButton(onClick = {
+                        val next = Calendar.getInstance().apply {
+                            set(Calendar.YEAR, year)
+                            set(Calendar.MONTH, month)
+                            set(Calendar.DAY_OF_MONTH, 1)
+                            add(Calendar.MONTH, 1)
+                        }
+                        year = next.get(Calendar.YEAR)
+                        month = next.get(Calendar.MONTH)
+                        day = day.coerceAtMost(next.getActualMaximum(Calendar.DAY_OF_MONTH))
+                    }) { Text(">") }
                 }
-            )
+                Row(Modifier.fillMaxWidth()) {
+                    listOf("日", "一", "二", "三", "四", "五", "六").forEach { label ->
+                        Text(
+                            label,
+                            color = contentColor,
+                            textAlign = TextAlign.Center,
+                            modifier = Modifier.weight(1f)
+                        )
+                    }
+                }
+                for (week in 0 until 6) {
+                    Row(Modifier.fillMaxWidth()) {
+                        for (weekday in 0 until 7) {
+                            val cell = week * 7 + weekday
+                            val dayNumber = cell - firstOffset + 1
+                            if (dayNumber in 1..daysInMonth) {
+                                TextButton(
+                                    onClick = { day = dayNumber },
+                                    modifier = Modifier.weight(1f)
+                                ) {
+                                    Text(
+                                        dayNumber.toString(),
+                                        color = if (dayNumber == day) MaterialTheme.colorScheme.primary else contentColor,
+                                        fontWeight = if (dayNumber == day) FontWeight.Bold else FontWeight.Normal
+                                    )
+                                }
+                            } else {
+                                Text("", modifier = Modifier.weight(1f))
+                            }
+                        }
+                    }
+                }
+            }
         },
         confirmButton = {
             Button(
                 onClick = {
-                    val selected = Calendar.getInstance().apply {
+                    selected.apply {
                         set(Calendar.YEAR, year)
                         set(Calendar.MONTH, month)
                         set(Calendar.DAY_OF_MONTH, day)
@@ -164,6 +224,7 @@ fun TimePickerDialog(
     var minute by rememberSaveable(initialTime) { mutableStateOf(parts.getOrNull(1)?.toIntOrNull()?.coerceIn(0, 59) ?: 0) }
     val containerColor = MaterialTheme.colorScheme.surface
     val contentColor = MaterialTheme.colorScheme.onSurface
+    val pickerTheme = if (contentColor.luminance() > 0.5f) R.style.Theme_KomugiAccounting_Picker_Dark else R.style.Theme_KomugiAccounting_Picker
 
     AlertDialog(
         onDismissRequest = onDismiss,
@@ -175,7 +236,7 @@ fun TimePickerDialog(
             AndroidView(
                 modifier = Modifier.fillMaxWidth(),
                 factory = { context ->
-                    val themedContext = ContextThemeWrapper(context, R.style.Theme_KomugiAccounting_Picker)
+                    val themedContext = ContextThemeWrapper(context, pickerTheme)
                     android.widget.LinearLayout(themedContext).apply {
                         orientation = android.widget.LinearLayout.HORIZONTAL
                         gravity = android.view.Gravity.CENTER
@@ -199,12 +260,16 @@ fun TimePickerDialog(
                         addView(hourPicker)
                         addView(minutePicker)
                         post { setPickerTextColor(contentColor.toArgb()) }
+                        postDelayed({ setPickerTextColor(contentColor.toArgb()) }, 80)
+                        postDelayed({ setPickerTextColor(contentColor.toArgb()) }, 200)
                     }
                 },
                 update = { picker ->
                     picker.setBackgroundColor(containerColor.toArgb())
                     picker.setPickerTextColor(contentColor.toArgb())
                     picker.post { picker.setPickerTextColor(contentColor.toArgb()) }
+                    picker.postDelayed({ picker.setPickerTextColor(contentColor.toArgb()) }, 80)
+                    picker.postDelayed({ picker.setPickerTextColor(contentColor.toArgb()) }, 200)
                 }
             )
         },
