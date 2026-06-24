@@ -3,7 +3,6 @@ package com.komugi.komugiaccounting.ui.add
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.FlowRow
@@ -14,6 +13,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
@@ -32,9 +32,9 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import com.komugi.komugiaccounting.data.model.Category
 import com.komugi.komugiaccounting.data.model.Member
@@ -42,7 +42,6 @@ import com.komugi.komugiaccounting.data.model.RecordType
 import com.komugi.komugiaccounting.data.model.Template
 import com.komugi.komugiaccounting.ui.components.CategoryPickerContent
 import com.komugi.komugiaccounting.ui.components.DatePickerDialog
-import com.komugi.komugiaccounting.ui.components.NumberKeyboard
 import com.komugi.komugiaccounting.ui.components.TimePickerDialog
 import com.komugi.komugiaccounting.ui.components.categoryDisplayPath
 import com.komugi.komugiaccounting.util.AmountUtil
@@ -77,21 +76,14 @@ fun AddRecordScreen(
     var loadedAutoBookTodoId by rememberSaveable { mutableStateOf<String?>(null) }
     var showDatePicker by rememberSaveable { mutableStateOf(false) }
     var showTimePicker by rememberSaveable { mutableStateOf(false) }
-    var showNumberKeyboard by rememberSaveable { mutableStateOf(false) }
     var showCategoryPicker by rememberSaveable { mutableStateOf(false) }
     var pendingDelete by rememberSaveable { mutableStateOf(false) }
 
-    fun hideNumberKeyboard() {
-        showNumberKeyboard = false
+    fun clearInputFocus() {
         focusManager.clearFocus()
     }
 
-    fun dismissNumberKeyboard() {
-        showNumberKeyboard = false
-    }
-
     val editingRecord = recordId?.let { id -> data.records.firstOrNull { it.id == id } }
-    val activeAutoBookTodo = autoBookTodoId?.let { id -> data.autoBookTodos.firstOrNull { it.id == id } }
     val typeCategories = data.categories.filter { it.enabled && it.type == type && !it.name.startsWith("__group__") }.sortedBy { it.sortOrder }
     val selectedCategory = typeCategories.firstOrNull { it.id == selectedCategoryId }
     val members = data.members.filter { it.enabled }
@@ -117,14 +109,13 @@ fun AddRecordScreen(
         dateTime = DateTimeUtil.formatDateTime(todo.dateTime)
         remark = appendRemarkLine(remark, todo.ruleName)
         showCategoryPicker = false
-        hideNumberKeyboard()
+        clearInputFocus()
         error = null
         message = null
     }
 
     BackHandler {
         when {
-            showNumberKeyboard -> hideNumberKeyboard()
             showCategoryPicker -> showCategoryPicker = false
             showDatePicker -> showDatePicker = false
             showTimePicker -> showTimePicker = false
@@ -152,7 +143,7 @@ fun AddRecordScreen(
                 selectedCategoryId = record.categoryId
                 selectedMemberId = record.memberId
             }
-            hideNumberKeyboard()
+            clearInputFocus()
             error = null
             message = null
         }
@@ -179,7 +170,7 @@ fun AddRecordScreen(
     }
 
     fun selectType(nextType: RecordType) {
-        hideNumberKeyboard()
+        clearInputFocus()
         type = nextType
         topTab = if (nextType == RecordType.EXPENSE) AddTopTab.EXPENSE else AddTopTab.INCOME
         showCategoryPicker = false
@@ -189,7 +180,7 @@ fun AddRecordScreen(
     }
 
     fun applyTemplate(template: Template) {
-        hideNumberKeyboard()
+        clearInputFocus()
         type = template.type
         topTab = if (template.type == RecordType.EXPENSE) AddTopTab.EXPENSE else AddTopTab.INCOME
         amount = template.amount?.let { AmountUtil.formatPlain(it) }.orEmpty()
@@ -238,7 +229,7 @@ fun AddRecordScreen(
             item {
                 Row(horizontalArrangement = Arrangement.spacedBy(10.dp), verticalAlignment = Alignment.CenterVertically) {
                     OutlinedButton(onClick = {
-                        hideNumberKeyboard()
+                        clearInputFocus()
                         onBack()
                     }) { Text("<") }
                     Text(
@@ -253,7 +244,7 @@ fun AddRecordScreen(
                     FilterChip(
                         selected = topTab == AddTopTab.TEMPLATE,
                         onClick = {
-                            hideNumberKeyboard()
+                            clearInputFocus()
                             topTab = AddTopTab.TEMPLATE
                             pendingDelete = false
                         },
@@ -280,50 +271,46 @@ fun AddRecordScreen(
                         pendingDelete = pendingDelete,
                         amount = amount,
                         onAmountChange = { amount = it },
-                        showNumberKeyboard = showNumberKeyboard,
-                        onAmountClick = { showNumberKeyboard = true },
-                        onDismissNumberKeyboard = { hideNumberKeyboard() },
                         selectedCategory = selectedCategory,
                         onOpenCategoryPicker = {
-                            hideNumberKeyboard()
+                            clearInputFocus()
                             showCategoryPicker = true
                         },
                         members = members,
                         selectedMemberId = selectedMemberId,
                         onMemberSelected = {
-                            hideNumberKeyboard()
+                            clearInputFocus()
                             selectedMemberId = it
                         },
                         date = datePart(dateTime),
                         time = timePart(dateTime),
                         onOpenDatePicker = {
-                            hideNumberKeyboard()
+                            clearInputFocus()
                             showDatePicker = true
                         },
                         onOpenTimePicker = {
-                            hideNumberKeyboard()
+                            clearInputFocus()
                             showTimePicker = true
                         },
                         remark = remark,
                         onRemarkChange = { remark = it },
-                        onRemarkFocus = { dismissNumberKeyboard() },
                         message = message,
                         error = error,
                         onSaveTemplate = {
-                            hideNumberKeyboard()
+                            clearInputFocus()
                             pendingDelete = false
                             message = null
                             error = viewModel.saveTemplate(type, amount, selectedCategoryId, selectedMemberId, remark)
                             if (error == null) message = "已存为模板"
                         },
                         onSaveAndContinue = {
-                            hideNumberKeyboard()
+                            clearInputFocus()
                             message = null
                             error = viewModel.saveRecord(type, amount, selectedCategoryId, selectedMemberId, dateTime, remark, null)
                             if (error == null) afterAutoBookTodoSaved(continueNext = true)
                         },
                         onSave = {
-                            hideNumberKeyboard()
+                            clearInputFocus()
                             pendingDelete = false
                             message = null
                             error = viewModel.saveRecord(type, amount, selectedCategoryId, selectedMemberId, dateTime, remark, recordId)
@@ -340,13 +327,13 @@ fun AddRecordScreen(
                         },
                         onToggleRefund = {
                             val id = recordId ?: return@RecordFormCard
-                            hideNumberKeyboard()
+                            clearInputFocus()
                             pendingDelete = false
                             viewModel.setRecordRefunded(id, editingRecord?.isRefunded != true)
                         },
                         onDelete = {
                             val id = recordId ?: return@RecordFormCard
-                            hideNumberKeyboard()
+                            clearInputFocus()
                             if (pendingDelete) {
                                 viewModel.deleteRecord(id)
                                 onSaved("记录已删除")
@@ -391,9 +378,6 @@ private fun RecordFormCard(
     pendingDelete: Boolean,
     amount: String,
     onAmountChange: (String) -> Unit,
-    showNumberKeyboard: Boolean,
-    onAmountClick: () -> Unit,
-    onDismissNumberKeyboard: () -> Unit,
     selectedCategory: Category?,
     onOpenCategoryPicker: () -> Unit,
     members: List<Member>,
@@ -405,7 +389,6 @@ private fun RecordFormCard(
     onOpenTimePicker: () -> Unit,
     remark: String,
     onRemarkChange: (String) -> Unit,
-    onRemarkFocus: () -> Unit,
     message: String?,
     error: String?,
     onSaveTemplate: () -> Unit,
@@ -419,25 +402,14 @@ private fun RecordFormCard(
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
     ) {
         Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
-            Box(modifier = Modifier.fillMaxWidth().clickable(onClick = onAmountClick)) {
-                OutlinedTextField(
-                    value = amount,
-                    onValueChange = {},
-                    label = { Text("金额") },
-                    enabled = false,
-                    readOnly = true,
-                    singleLine = true,
-                    modifier = Modifier.fillMaxWidth()
-                )
-            }
-            if (showNumberKeyboard) {
-                NumberKeyboard(
-                    value = amount,
-                    onValueChange = onAmountChange,
-                    onDismiss = onDismissNumberKeyboard,
-                    onCancel = onDismissNumberKeyboard
-                )
-            }
+            OutlinedTextField(
+                value = amount,
+                onValueChange = onAmountChange,
+                label = { Text("金额") },
+                singleLine = true,
+                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+                modifier = Modifier.fillMaxWidth()
+            )
 
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 Text("分类：", fontWeight = FontWeight.SemiBold)
@@ -473,9 +445,7 @@ private fun RecordFormCard(
                 onValueChange = onRemarkChange,
                 label = { Text("备注") },
                 minLines = 2,
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .onFocusChanged { if (it.isFocused) onRemarkFocus() }
+                modifier = Modifier.fillMaxWidth()
             )
             message?.let { Text(it, color = MaterialTheme.colorScheme.primary) }
             error?.let { Text(it, color = MaterialTheme.colorScheme.error) }

@@ -4,22 +4,33 @@ import java.math.BigDecimal
 import java.math.RoundingMode
 
 object AmountUtil {
-    private val amountRegex = Regex("""[￥¥]?\s*([0-9]+(?:,[0-9]{3})*(?:\.[0-9]+)?|[0-9]+(?:\.[0-9]+)?)""")
-
     fun parseToCents(input: String): Long? {
-        val clean = input.trim()
-        if (clean.isEmpty()) return null
-        val amountText = amountRegex.find(clean)
-            ?.groupValues
-            ?.getOrNull(1)
-            ?.replace(",", "")
-            ?: return null
+        val amountText = normalizeAmountText(input) ?: return null
         return runCatching {
             BigDecimal(amountText)
                 .setScale(2, RoundingMode.HALF_UP)
                 .multiply(BigDecimal(100))
                 .longValueExact()
         }.getOrNull()?.takeIf { it > 0L }
+    }
+
+    private fun normalizeAmountText(input: String): String? {
+        val clean = input
+            .filter { it.isDigit() || it == ',' || it == '.' }
+            .replace(",", "")
+        if (clean.none { it.isDigit() }) return null
+        val builder = StringBuilder()
+        var dotSeen = false
+        clean.forEach { char ->
+            when {
+                char.isDigit() -> builder.append(char)
+                char == '.' && !dotSeen -> {
+                    builder.append(char)
+                    dotSeen = true
+                }
+            }
+        }
+        return builder.toString().takeIf { it.any(Char::isDigit) }
     }
 
     fun format(cents: Long, symbol: String = "￥"): String {
