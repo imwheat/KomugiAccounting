@@ -416,6 +416,10 @@ class AppDataRepository private constructor(context: Context) {
 
     fun handleNotification(title: String, text: String, postTime: Long) {
         update { current ->
+            val alreadyLogged = current.autoBookNotificationLogs.any {
+                it.title == title && it.text == text && it.dateTime == postTime
+            }
+            if (alreadyLogged) return@update current
             val log = AutoBookNotificationLog(
                 id = UUID.randomUUID().toString(),
                 title = title,

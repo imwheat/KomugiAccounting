@@ -6,7 +6,15 @@ import android.service.notification.StatusBarNotification
 import com.komugi.komugiaccounting.data.repository.AppDataRepository
 
 class NotificationAutoBookService : NotificationListenerService() {
+    override fun onListenerConnected() {
+        activeNotifications?.forEach(::processNotification)
+    }
+
     override fun onNotificationPosted(sbn: StatusBarNotification) {
+        processNotification(sbn)
+    }
+
+    private fun processNotification(sbn: StatusBarNotification) {
         val notification = sbn.notification ?: return
         val extras = notification.extras
         val title = extras.getCharSequence(Notification.EXTRA_TITLE)?.toString().orEmpty()

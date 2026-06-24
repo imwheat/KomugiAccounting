@@ -223,7 +223,13 @@ private fun AutoBookRuleListScreen(
     val listenerEnabled = context.isNotificationListenerEnabled()
 
     LaunchedEffect(listenerEnabled) {
-        showPermissionDialog = !listenerEnabled
+        if (listenerEnabled) {
+            android.service.notification.NotificationListenerService.requestRebind(
+                ComponentName(context, NotificationAutoBookService::class.java)
+            )
+        } else {
+            showPermissionDialog = true
+        }
     }
 
     LazyColumn(modifier = modifier.padding(18.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
@@ -396,14 +402,14 @@ private fun AutoBookTestScreen(repository: AppDataRepository, onBack: () -> Unit
                                 message = "读取到 ${results.size} 条消息"
                             }
                         }
-                    ) { Text("读取消息") }
-                    Text("标题为空会读取全部已保存通知。当前已保存 ${data.autoBookNotificationLogs.size} 条。", color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    ) { Text("读取已保存消息") }
+                    Text("按日期范围读取本地已保存通知；标题为空会读取全部。当前已保存 ${data.autoBookNotificationLogs.size} 条。", color = MaterialTheme.colorScheme.onSurfaceVariant)
                     message?.let { Text(it, color = MaterialTheme.colorScheme.onSurfaceVariant) }
                 }
             }
         }
         if (results.isEmpty()) {
-            item { Text("没有读取到消息记录。", color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(12.dp)) }
+            item { Text("没有读取到已保存消息。开启通知使用权后收到的新通知会保存下来，之后可按时间筛选。", color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(12.dp)) }
         } else {
             items(results, key = { it.id }) { log -> AutoBookNotificationLogCard(log) }
         }
