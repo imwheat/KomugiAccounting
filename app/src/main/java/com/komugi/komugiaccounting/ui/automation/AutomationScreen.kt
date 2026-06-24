@@ -466,6 +466,12 @@ private fun AutoBookTestScreen(repository: AppDataRepository, onBack: () -> Unit
                             }
                         }
                     ) { Text("读取当前通知") }
+                    OutlinedButton(
+                        modifier = Modifier.fillMaxWidth(),
+                        onClick = {
+                            context.startActivity(Intent(Settings.ACTION_NOTIFICATION_LISTENER_SETTINGS))
+                        }
+                    ) { Text("通知使用权设置") }
                     Text("读取当前通知栏可见通知，并按日期范围筛选；标题为空会读取全部。", color = MaterialTheme.colorScheme.onSurfaceVariant)
                     message?.let { Text(it, color = MaterialTheme.colorScheme.onSurfaceVariant) }
                 }

@@ -1,6 +1,7 @@
 package com.komugi.komugiaccounting.util
 
 import com.komugi.komugiaccounting.data.model.Category
+import com.komugi.komugiaccounting.data.model.AutoBookRule
 import com.komugi.komugiaccounting.data.model.Member
 import com.komugi.komugiaccounting.data.model.RecordType
 
@@ -70,6 +71,33 @@ object DefaultData {
         Member("mem-spouse", "伴侣", "#EC407A", isSystem = true),
         Member("mem-child", "孩子", "#FFCA28", isSystem = true),
         Member("mem-family", "家庭", "#66BB6A", isSystem = true)
+    )
+
+    val autoBookRules = listOf(
+        AutoBookRule(
+            id = "auto-book-boc-expense",
+            name = "中国银行",
+            titleKeyword = "中国银行",
+            textPattern = "支取人民币XXX元",
+            type = RecordType.EXPENSE,
+            enabled = false
+        ),
+        AutoBookRule(
+            id = "auto-book-boc-income",
+            name = "中国银行",
+            titleKeyword = "中国银行",
+            textPattern = "收入人民币XXX元",
+            type = RecordType.INCOME,
+            enabled = false
+        ),
+        AutoBookRule(
+            id = "auto-book-wechat-expense",
+            name = "微信",
+            titleKeyword = "微信",
+            textPattern = "已支付XXX",
+            type = RecordType.EXPENSE,
+            enabled = false
+        )
     )
 
     private fun expense(id: String, name: String, groupName: String, sortOrder: Int, iconName: String, color: String) =

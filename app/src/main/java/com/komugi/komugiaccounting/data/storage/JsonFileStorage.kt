@@ -45,6 +45,7 @@ class JsonFileStorage(private val context: Context) {
     private fun defaultData(): AppData = AppData(
         categories = DefaultData.categories,
         members = DefaultData.members,
+        autoBookRules = DefaultData.autoBookRules,
         settings = AppSettings(
             lastExpenseCategoryId = "cat-meals",
             lastIncomeCategoryId = "cat-salary",
