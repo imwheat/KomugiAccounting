@@ -58,6 +58,7 @@ import com.komugi.komugiaccounting.util.AmountUtil
 import com.komugi.komugiaccounting.util.DateTimeUtil
 import java.util.Calendar
 import java.util.UUID
+import kotlinx.coroutines.delay
 
 private sealed interface AutomationPage {
     data object Main : AutomationPage
@@ -212,18 +213,18 @@ private fun AutomationOptionCard(title: String, enabledCount: Int, totalCount: I
 }
 
 @Composable
-private fun AutoBookRuleListScreen(
-    repository: AppDataRepository,
-    onBack: () -> Unit,
-    onCreate: () -> Unit,
-    onTest: () -> Unit,
-    onEdit: (String) -> Unit,
-    modifier: Modifier = Modifier
-) {
+private fun NotificationListenerPermissionPrompt(): Boolean {
     val context = LocalContext.current
-    val data by repository.data.collectAsState()
+    var checkToken by rememberSaveable { mutableStateOf(0) }
     var showPermissionDialog by rememberSaveable { mutableStateOf(false) }
-    val listenerEnabled = context.isNotificationListenerEnabled()
+    val listenerEnabled = remember(context, checkToken) { context.isNotificationListenerEnabled() }
+
+    LaunchedEffect(Unit) {
+        while (true) {
+            delay(1000)
+            checkToken += 1
+        }
+    }
 
     LaunchedEffect(listenerEnabled) {
         if (listenerEnabled) {
@@ -234,6 +235,61 @@ private fun AutoBookRuleListScreen(
             showPermissionDialog = true
         }
     }
+
+    if (showPermissionDialog) {
+        AlertDialog(
+            onDismissRequest = { showPermissionDialog = false },
+            title = { Text("需要通知使用权") },
+            text = { Text("自动记账需要读取手机通知内容。重新安装后系统可能会关闭这个权限，需要到系统设置里重新开启。") },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        showPermissionDialog = false
+                        context.startActivity(Intent(Settings.ACTION_NOTIFICATION_LISTENER_SETTINGS))
+                    }
+                ) { Text("去开启") }
+            },
+            dismissButton = {
+                OutlinedButton(onClick = { showPermissionDialog = false }) { Text("暂不开启") }
+            }
+        )
+    }
+
+    return listenerEnabled
+}
+
+@Composable
+private fun NotificationListenerStatusRow(listenerEnabled: Boolean) {
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.SpaceBetween,
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Text(
+            text = if (listenerEnabled) "通知使用权：已开启" else "通知使用权：未开启，自动记账无法读取新通知",
+            color = if (listenerEnabled) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.error,
+            modifier = Modifier.weight(1f)
+        )
+        if (!listenerEnabled) {
+            val context = LocalContext.current
+            OutlinedButton(onClick = { context.startActivity(Intent(Settings.ACTION_NOTIFICATION_LISTENER_SETTINGS)) }) {
+                Text("去开启")
+            }
+        }
+    }
+}
+
+@Composable
+private fun AutoBookRuleListScreen(
+    repository: AppDataRepository,
+    onBack: () -> Unit,
+    onCreate: () -> Unit,
+    onTest: () -> Unit,
+    onEdit: (String) -> Unit,
+    modifier: Modifier = Modifier
+) {
+    val data by repository.data.collectAsState()
+    val listenerEnabled = NotificationListenerPermissionPrompt()
 
     LazyColumn(modifier = modifier.padding(18.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
         item {
@@ -259,11 +315,7 @@ private fun AutoBookRuleListScreen(
             }
         }
         item {
-            Text(
-                text = if (listenerEnabled) "通知使用权：已开启" else "通知使用权：未开启，自动记账无法读取新通知",
-                color = if (listenerEnabled) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.error,
-                modifier = Modifier.padding(horizontal = 4.dp)
-            )
+            NotificationListenerStatusRow(listenerEnabled)
         }
         if (data.autoBookRules.isEmpty()) {
             item { Text("还没有规则。", color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(12.dp)) }
@@ -285,25 +337,6 @@ private fun AutoBookRuleListScreen(
                 }
             }
         }
-    }
-
-    if (showPermissionDialog) {
-        AlertDialog(
-            onDismissRequest = { showPermissionDialog = false },
-            title = { Text("需要通知使用权") },
-            text = { Text("自动记账需要读取手机通知内容。开启后，软件未打开时也能接收新通知并生成自动记账代办。") },
-            confirmButton = {
-                Button(
-                    onClick = {
-                        showPermissionDialog = false
-                        context.startActivity(Intent(Settings.ACTION_NOTIFICATION_LISTENER_SETTINGS))
-                    }
-                ) { Text("去开启") }
-            },
-            dismissButton = {
-                OutlinedButton(onClick = { showPermissionDialog = false }) { Text("暂不开启") }
-            }
-        )
     }
 }
 
@@ -484,12 +517,16 @@ private fun AutoBookNotificationLogCard(log: AutoBookNotificationLog) {
 @Composable
 private fun AutoBookTodoListScreen(repository: AppDataRepository, onEditTodo: (String) -> Unit, onBack: () -> Unit, modifier: Modifier = Modifier) {
     val data by repository.data.collectAsState()
+    val listenerEnabled = NotificationListenerPermissionPrompt()
     LazyColumn(modifier = modifier.padding(18.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
         item {
             Row(horizontalArrangement = Arrangement.spacedBy(10.dp), verticalAlignment = Alignment.CenterVertically) {
                 OutlinedButton(onClick = onBack) { Text("<") }
                 Text("自动记账代办", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Black)
             }
+        }
+        item {
+            NotificationListenerStatusRow(listenerEnabled)
         }
         if (data.autoBookTodos.isEmpty()) {
             item { Text("没有待处理。", color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(12.dp)) }
