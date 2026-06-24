@@ -7,7 +7,9 @@ import android.widget.NumberPicker
 import android.widget.TextView
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.AlertDialog
@@ -27,8 +29,10 @@ import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import com.komugi.komugiaccounting.R
 import com.komugi.komugiaccounting.util.DateTimeUtil
 import java.util.Calendar
@@ -175,16 +179,23 @@ fun DatePickerDialog(
                             if (dayNumber in 1..daysInMonth) {
                                 TextButton(
                                     onClick = { day = dayNumber },
-                                    modifier = Modifier.weight(1f)
+                                    modifier = Modifier
+                                        .weight(1f)
+                                        .height(36.dp),
+                                    contentPadding = PaddingValues(0.dp)
                                 ) {
                                     Text(
                                         dayNumber.toString(),
                                         color = if (dayNumber == day) MaterialTheme.colorScheme.primary else contentColor,
-                                        fontWeight = if (dayNumber == day) FontWeight.Bold else FontWeight.Normal
+                                        fontWeight = if (dayNumber == day) FontWeight.Bold else FontWeight.Normal,
+                                        fontSize = 14.sp,
+                                        maxLines = 1,
+                                        overflow = TextOverflow.Clip,
+                                        textAlign = TextAlign.Center
                                     )
                                 }
                             } else {
-                                Text("", modifier = Modifier.weight(1f))
+                                Text("", modifier = Modifier.weight(1f).height(36.dp))
                             }
                         }
                     }
