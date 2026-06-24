@@ -16,6 +16,7 @@ class AddRecordViewModel(private val repository: AppDataRepository) {
     fun addMember(name: String) = repository.addMember(name)
     fun deleteRecord(recordId: String) = repository.deleteRecord(recordId)
     fun setRecordRefunded(recordId: String, refunded: Boolean) = repository.setRecordRefunded(recordId, refunded)
+    fun removeAutoBookTodo(todoId: String) = repository.removeAutoBookTodo(todoId)
 
     fun saveTemplate(
         type: RecordType,

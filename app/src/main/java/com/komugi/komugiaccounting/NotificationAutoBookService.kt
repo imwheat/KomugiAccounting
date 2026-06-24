@@ -1,51 +1,98 @@
 package com.komugi.komugiaccounting
 
 import android.app.Notification
+import android.content.ComponentName
 import android.os.Build
 import android.os.Bundle
 import android.os.Parcelable
 import android.service.notification.NotificationListenerService
 import android.service.notification.StatusBarNotification
 import com.komugi.komugiaccounting.data.repository.AppDataRepository
-import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.SupervisorJob
-import kotlinx.coroutines.cancel
-import kotlinx.coroutines.launch
 
 class NotificationAutoBookService : NotificationListenerService() {
-    private val serviceScope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
+    companion object {
+        @Volatile
+        var instance: NotificationAutoBookService? = null
+            private set
 
-    override fun onListenerConnected() {
-        super.onListenerConnected()
-        runCatching {
-            activeNotifications?.forEach { sbn ->
-                serviceScope.launch { processNotification(sbn) }
-            }
-        }
+        data class NotificationData(
+            val packageName: String,
+            val title: String,
+            val text: String,
+            val postTime: Long,
+            val key: String,
+            val isClearable: Boolean,
+            val iconResId: Int = 0
+        )
     }
 
-    override fun onNotificationPosted(sbn: StatusBarNotification) {
-        super.onNotificationPosted(sbn)
-        serviceScope.launch { processNotification(sbn) }
+    interface NotificationListener {
+        fun onNewNotification(data: NotificationData)
+        fun onNotificationRemoved(key: String)
+    }
+
+    private val listeners = mutableListOf<NotificationListener>()
+
+    override fun onCreate() {
+        super.onCreate()
+        instance = this
     }
 
     override fun onDestroy() {
-        serviceScope.cancel()
+        instance = null
+        listeners.clear()
         super.onDestroy()
     }
 
-    private fun shouldProcess(sbn: StatusBarNotification): Boolean {
-        val notification = sbn.notification ?: return false
-        if (sbn.packageName == packageName) return false
-        if (notification.flags and Notification.FLAG_ONGOING_EVENT != 0) return false
-        return true
+    override fun onListenerConnected() {
+        super.onListenerConnected()
+        instance = this
     }
 
-    private fun processNotification(sbn: StatusBarNotification) {
-        if (!shouldProcess(sbn)) return
+    override fun onListenerDisconnected() {
+        instance = null
+        requestRebind(ComponentName(this, NotificationAutoBookService::class.java))
+        super.onListenerDisconnected()
+    }
 
-        val notification = sbn.notification ?: return
+    override fun onNotificationPosted(sbn: StatusBarNotification) {
+        val data = parseNotification(sbn) ?: return
+        AppDataRepository.get(applicationContext).handleNotification(
+            title = data.title,
+            text = data.text,
+            postTime = data.postTime
+        )
+        listeners.forEach { it.onNewNotification(data) }
+    }
+
+    override fun onNotificationRemoved(sbn: StatusBarNotification) {
+        listeners.forEach { it.onNotificationRemoved(sbn.key) }
+    }
+
+    fun getCurrentNotifications(): List<NotificationData> =
+        runCatching {
+            activeNotifications
+                ?.mapNotNull(::parseNotification)
+                .orEmpty()
+                .sortedByDescending { it.postTime }
+        }.getOrDefault(emptyList())
+
+    fun addListener(listener: NotificationListener) {
+        if (listener !in listeners) listeners.add(listener)
+    }
+
+    fun removeListener(listener: NotificationListener) {
+        listeners.remove(listener)
+    }
+
+    fun clearListeners() {
+        listeners.clear()
+    }
+
+    private fun parseNotification(sbn: StatusBarNotification): NotificationData? {
+        val notification = sbn.notification ?: return null
+        if (sbn.packageName == packageName) return null
+
         val extras = notification.extras ?: Bundle.EMPTY
         val title = listOf(
             extras.getCharSequence(Notification.EXTRA_TITLE)?.toString().orEmpty(),
@@ -58,16 +105,20 @@ class NotificationAutoBookService : NotificationListenerService() {
             addAll(extras.readAllTextExtras(maxDepth = 2))
         }
             .map { it.trim() }
-            .filter { it.isNotBlank() && it != title }
+            .filter { it.isMeaningfulNotificationText(title) }
             .distinct()
             .joinToString("\n")
 
-        if (title.isBlank() && text.isBlank()) return
+        if (title.isBlank() && text.isBlank()) return null
 
-        AppDataRepository.get(applicationContext).handleNotification(
+        return NotificationData(
+            packageName = sbn.packageName,
             title = title.ifBlank { sbn.packageName },
             text = text,
-            postTime = sbn.postTime
+            postTime = sbn.postTime,
+            key = sbn.key,
+            isClearable = sbn.isClearable,
+            iconResId = notification.icon
         )
     }
 
@@ -105,8 +156,8 @@ class NotificationAutoBookService : NotificationListenerService() {
             when (val value = get(key)) {
                 is CharSequence -> listOf(value.toString())
                 is Bundle -> value.readAllTextExtras(maxDepth - 1)
-                is Array<*> -> value.flatMap { element -> element.readTextValue(maxDepth - 1) }
-                is Iterable<*> -> value.flatMap { element -> element.readTextValue(maxDepth - 1) }
+                is Array<*> -> value.flatMap { it.readTextValue(maxDepth - 1) }
+                is Iterable<*> -> value.flatMap { it.readTextValue(maxDepth - 1) }
                 else -> emptyList()
             }
         }
@@ -117,5 +168,22 @@ class NotificationAutoBookService : NotificationListenerService() {
         is Bundle -> readAllTextExtras(maxDepth)
         is CharSequence -> listOf(toString())
         else -> listOf(toString())
+    }
+
+    private fun String.isMeaningfulNotificationText(title: String): Boolean {
+        if (isBlank() || this == title) return false
+        val noiseParts = listOf(
+            "android.app.Notification",
+            "androidx.core.app.NotificationCompat",
+            "android.app.PendingIntent",
+            "android.graphics.drawable.Icon",
+            "android.os.Bundle",
+            "android.widget.RemoteViews",
+            "Icon(typ=",
+            "PendingIntent{",
+            "Bundle["
+        )
+        if (noiseParts.any { contains(it) }) return false
+        return true
     }
 }

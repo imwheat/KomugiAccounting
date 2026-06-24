@@ -74,6 +74,7 @@ private sealed interface AutomationPage {
 fun AutomationScreen(
     repository: AppDataRepository,
     onBottomBarVisibleChange: (Boolean) -> Unit,
+    onEditAutoBookTodo: (String) -> Unit = {},
     initialTodoList: Boolean = false,
     onInitialTodoListConsumed: () -> Unit = {},
     initialTodoListBackToPreviousScreen: Boolean = false,
@@ -122,6 +123,7 @@ fun AutomationScreen(
         )
         AutomationPage.TodoList -> AutoBookTodoListScreen(
             repository = repository,
+            onEditTodo = onEditAutoBookTodo,
             onBack = {
                 if (initialTodoListBackToPreviousScreen) onInitialTodoListBack() else page = AutomationPage.Main
             },
@@ -376,7 +378,7 @@ private fun AutoBookRuleEditScreen(repository: AppDataRepository, ruleId: String
 
 @Composable
 private fun AutoBookTestScreen(repository: AppDataRepository, onBack: () -> Unit, modifier: Modifier = Modifier) {
-    val data by repository.data.collectAsState()
+    val context = LocalContext.current
     var titleKeyword by rememberSaveable { mutableStateOf("") }
     var startDate by rememberSaveable { mutableStateOf(DateTimeUtil.formatDate(DateTimeUtil.startOfDay())) }
     var endDate by rememberSaveable { mutableStateOf(DateTimeUtil.formatDate(DateTimeUtil.startOfDay())) }
@@ -405,18 +407,39 @@ private fun AutoBookTestScreen(repository: AppDataRepository, onBack: () -> Unit
                                 message = "日期格式不正确"
                             } else {
                                 val endExclusive = DateTimeUtil.endExclusiveFromStart(end, Calendar.DAY_OF_YEAR, 1)
-                                results = repository.queryAutoBookNotificationLogs(titleKeyword, start, endExclusive)
-                                message = "读取到 ${results.size} 条消息"
+                                val keyword = titleKeyword.trim()
+                                val service = NotificationAutoBookService.instance
+                                results = service
+                                    ?.getCurrentNotifications()
+                                    .orEmpty()
+                                    .filter { it.postTime in start until endExclusive }
+                                    .filter { keyword.isBlank() || it.title.contains(keyword) || it.text.contains(keyword) }
+                                    .map {
+                                        AutoBookNotificationLog(
+                                            id = it.key,
+                                            title = it.title,
+                                            text = it.text,
+                                            dateTime = it.postTime
+                                        )
+                                    }
+                                message = if (service == null) {
+                                    android.service.notification.NotificationListenerService.requestRebind(
+                                        ComponentName(context, NotificationAutoBookService::class.java)
+                                    )
+                                    "通知监听服务未连接，已请求重新连接。请等几秒后再读取；如果仍不行，关闭再重新开启通知使用权。"
+                                } else {
+                                    "读取到 ${results.size} 条当前通知"
+                                }
                             }
                         }
-                    ) { Text("读取已保存消息") }
-                    Text("按日期范围读取本地已保存通知；标题为空会读取全部。当前已保存 ${data.autoBookNotificationLogs.size} 条。", color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    ) { Text("读取当前通知") }
+                    Text("读取当前通知栏可见通知，并按日期范围筛选；标题为空会读取全部。", color = MaterialTheme.colorScheme.onSurfaceVariant)
                     message?.let { Text(it, color = MaterialTheme.colorScheme.onSurfaceVariant) }
                 }
             }
         }
         if (results.isEmpty()) {
-            item { Text("没有读取到已保存消息。开启通知使用权后收到的新通知会保存下来，之后可按时间筛选。", color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(12.dp)) }
+            item { Text("没有读取到当前通知。请确认通知栏里有可见通知，且通知使用权已开启。", color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(12.dp)) }
         } else {
             items(results, key = { it.id }) { log -> AutoBookNotificationLogCard(log) }
         }
@@ -436,7 +459,7 @@ private fun AutoBookTestScreen(repository: AppDataRepository, onBack: () -> Unit
                     modifier = Modifier.weight(1f),
                     enabled = results.isNotEmpty(),
                     onClick = {
-                        val count = repository.applyAutoBookTestLogs(results.map { it.id }.toSet())
+                        val count = repository.applyAutoBookTestNotifications(results)
                         message = "已写入 ${count} 条自动记账代办"
                     }
                 ) { Text("应用") }
@@ -459,7 +482,7 @@ private fun AutoBookNotificationLogCard(log: AutoBookNotificationLog) {
 }
 
 @Composable
-private fun AutoBookTodoListScreen(repository: AppDataRepository, onBack: () -> Unit, modifier: Modifier = Modifier) {
+private fun AutoBookTodoListScreen(repository: AppDataRepository, onEditTodo: (String) -> Unit, onBack: () -> Unit, modifier: Modifier = Modifier) {
     val data by repository.data.collectAsState()
     LazyColumn(modifier = modifier.padding(18.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
         item {
@@ -472,14 +495,14 @@ private fun AutoBookTodoListScreen(repository: AppDataRepository, onBack: () -> 
             item { Text("没有待处理。", color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(12.dp)) }
         } else {
             items(data.autoBookTodos, key = { it.id }) { todo ->
-                AutoBookTodoCard(todo = todo, templates = data.templates, repository = repository)
+                AutoBookTodoCard(todo = todo, templates = data.templates, repository = repository, onEditTodo = onEditTodo)
             }
         }
     }
 }
 
 @Composable
-private fun AutoBookTodoCard(todo: AutoBookTodo, templates: List<Template>, repository: AppDataRepository) {
+private fun AutoBookTodoCard(todo: AutoBookTodo, templates: List<Template>, repository: AppDataRepository, onEditTodo: (String) -> Unit) {
     val color = if (todo.type == RecordType.INCOME) Color(0xFF1F7A4D) else Color(0xFFB3542E)
     var showTemplates by rememberSaveable(todo.id) { mutableStateOf(false) }
     val matchedTemplates = templates.filter { it.type == todo.type && it.amount == todo.amount }
@@ -490,11 +513,10 @@ private fun AutoBookTodoCard(todo: AutoBookTodo, templates: List<Template>, repo
                 Text(AmountUtil.format(todo.amount), color = color, fontWeight = FontWeight.Black)
             }
             Text(DateTimeUtil.formatDisplayDateTime(todo.dateTime), color = MaterialTheme.colorScheme.onSurfaceVariant)
-            Text(todo.notificationText, color = MaterialTheme.colorScheme.onSurfaceVariant)
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 OutlinedButton(onClick = { repository.ignoreAutoBookTodo(todo.id) }) { Text("忽略") }
                 OutlinedButton(onClick = { showTemplates = !showTemplates }) { Text("快捷加入") }
-                OutlinedButton(onClick = { showTemplates = !showTemplates }) { Text("编辑加入") }
+                OutlinedButton(onClick = { onEditTodo(todo.id) }) { Text("编辑加入") }
             }
             if (showTemplates) {
                 if (matchedTemplates.isEmpty()) {

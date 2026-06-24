@@ -64,6 +64,7 @@ fun AccountingApp(repository: AppDataRepository) {
     var previousScreens by remember { mutableStateOf<List<Screen>>(emptyList()) }
     var editingRecordId by remember { mutableStateOf<String?>(null) }
     var pendingHomePage by remember { mutableStateOf<Int?>(null) }
+    var pendingAutoBookTodoId by remember { mutableStateOf<String?>(null) }
     var showHomeBottomBar by remember { mutableStateOf(true) }
     var showAutomationBottomBar by remember { mutableStateOf(true) }
     var showSettingsBottomBar by remember { mutableStateOf(true) }
@@ -116,6 +117,7 @@ fun AccountingApp(repository: AppDataRepository) {
                             selected = currentScreen == screen,
                             onClick = {
                                 if (screen == Screen.Add) editingRecordId = null
+                                if (screen == Screen.Add) pendingAutoBookTodoId = null
                                 navigateTo(screen)
                             },
                             icon = { Text(screen.navIcon()) },
@@ -158,6 +160,11 @@ fun AccountingApp(repository: AppDataRepository) {
                 Screen.Automation -> AutomationScreen(
                     repository = repository,
                     onBottomBarVisibleChange = { showAutomationBottomBar = it },
+                    onEditAutoBookTodo = { todoId ->
+                        editingRecordId = null
+                        pendingAutoBookTodoId = todoId
+                        navigateTo(Screen.Add)
+                    },
                     initialTodoList = openAutomationTodoList,
                     onInitialTodoListConsumed = { openAutomationTodoList = false },
                     onInitialTodoListBack = {
@@ -169,11 +176,17 @@ fun AccountingApp(repository: AppDataRepository) {
                 Screen.Add -> AddRecordScreen(
                     viewModel = addRecordViewModel,
                     onSaved = { message ->
-                        goHome()
+                        if (pendingAutoBookTodoId != null) {
+                            navigateBack()
+                        } else {
+                            goHome()
+                        }
                         coroutineScope.launch { snackbarHostState.showSnackbar(message) }
                     },
                     onBack = ::navigateBack,
-                    recordId = editingRecordId
+                    recordId = editingRecordId,
+                    autoBookTodoId = pendingAutoBookTodoId,
+                    onAutoBookTodoChange = { pendingAutoBookTodoId = it }
                 )
                 Screen.Settings -> SettingsScreen(
                     repository = repository,

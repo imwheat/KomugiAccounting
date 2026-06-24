@@ -456,6 +456,19 @@ class AppDataRepository private constructor(context: Context) {
         return addedCount
     }
 
+    fun applyAutoBookTestNotifications(notifications: List<AutoBookNotificationLog>): Int {
+        if (notifications.isEmpty()) return 0
+        var addedCount = 0
+        update { current ->
+            val newTodos = notifications.flatMap { notification ->
+                matchAutoBookTodos(current.autoBookRules, notification.title, notification.text, notification.dateTime)
+            }
+            addedCount = newTodos.size
+            if (newTodos.isEmpty()) current else current.copy(autoBookTodos = current.autoBookTodos + newTodos)
+        }
+        return addedCount
+    }
+
     fun ignoreAutoBookTodo(todoId: String) = update { current ->
         current.copy(autoBookTodos = current.autoBookTodos.filterNot { it.id == todoId })
     }
@@ -664,8 +677,8 @@ class AppDataRepository private constructor(context: Context) {
                     ruleName = rule.name,
                     type = rule.type,
                     amount = amount,
-                    notificationTitle = title,
-                    notificationText = text,
+                    notificationTitle = "",
+                    notificationText = "",
                     dateTime = dateTime
                 )
             }
