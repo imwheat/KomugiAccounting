@@ -1,6 +1,7 @@
 ﻿package com.komugi.komugiaccounting.data.repository
 
 import android.content.Context
+import com.komugi.komugiaccounting.AutoBookTodoBadgeNotifier
 import com.komugi.komugiaccounting.data.model.AppData
 import com.komugi.komugiaccounting.data.model.AppSettings
 import com.komugi.komugiaccounting.data.model.AutoBookNotificationLog
@@ -24,12 +25,14 @@ import kotlinx.coroutines.flow.asStateFlow
 import java.util.UUID
 
 class AppDataRepository private constructor(context: Context) {
+    private val appContext = context.applicationContext
     private val storage = JsonFileStorage(context.applicationContext)
     private val _data = MutableStateFlow(storage.loadData())
     val data: StateFlow<AppData> = _data.asStateFlow()
 
     init {
         runDueAutomationRules()
+        syncAutoBookTodoBadge(_data.value.autoBookTodos.size)
     }
 
     fun addRecord(record: TransactionRecord) = update { current ->
@@ -636,12 +639,18 @@ class AppDataRepository private constructor(context: Context) {
         val imported = storage.importJson(jsonText)
         _data.value = imported
         storage.saveData(imported)
+        syncAutoBookTodoBadge(imported.autoBookTodos.size)
     }
 
     private fun update(block: (AppData) -> AppData) {
         val next = block(_data.value)
         _data.value = next
         storage.saveData(next)
+        syncAutoBookTodoBadge(next.autoBookTodos.size)
+    }
+
+    private fun syncAutoBookTodoBadge(todoCount: Int) {
+        AutoBookTodoBadgeNotifier.sync(appContext, todoCount)
     }
 
     private fun AutomationRule.isDueToday(now: Long): Boolean {

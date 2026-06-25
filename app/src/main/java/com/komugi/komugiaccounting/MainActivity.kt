@@ -1,6 +1,12 @@
 ﻿package com.komugi.komugiaccounting
 
+import android.Manifest
+import android.content.Intent
+import android.content.pm.PackageManager
+import android.net.Uri
+import android.os.Build
 import android.os.Bundle
+import android.provider.Settings
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.setContent
@@ -25,6 +31,8 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.core.app.ActivityCompat
+import androidx.core.content.ContextCompat
 import com.komugi.komugiaccounting.data.model.ThemeMode
 import com.komugi.komugiaccounting.data.repository.AppDataRepository
 import com.komugi.komugiaccounting.navigation.Screen
@@ -40,8 +48,19 @@ import com.komugi.komugiaccounting.ui.theme.KomugiAccountingTheme
 import kotlinx.coroutines.launch
 
 class MainActivity : ComponentActivity() {
+
+    companion object {
+        private const val PERMISSION_REQUEST_CODE = 1001
+    }
+
+    private var batteryOptimizationRequestShown = false
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+
+        // 初始化通知监听服务和前台服务
+        initializeServices()
+
         enableEdgeToEdge()
         setContent {
             val repository = remember { AppDataRepository.get(applicationContext) }
@@ -55,6 +74,85 @@ class MainActivity : ComponentActivity() {
                 AccountingApp(repository)
             }
         }
+    }
+
+    override fun onResume() {
+        super.onResume()
+        // 每次恢复时确保服务在运行
+        initializeServices()
+    }
+
+    override fun onRequestPermissionsResult(
+        requestCode: Int,
+        permissions: Array<out String>,
+        grantResults: IntArray
+    ) {
+        super.onRequestPermissionsResult(requestCode, permissions, grantResults)
+        if (requestCode == PERMISSION_REQUEST_CODE) {
+            // 权限授予后重新初始化服务
+            if (grantResults.isNotEmpty() && grantResults.all { it == PackageManager.PERMISSION_GRANTED }) {
+                initializeServices()
+            }
+        }
+    }
+
+    /**
+     * 初始化通知监听服务和前台服务
+     */
+    private fun initializeServices() {
+        // 1. 检查并请求通知权限（Android 13+）
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            if (ContextCompat.checkSelfPermission(
+                    this,
+                    Manifest.permission.POST_NOTIFICATIONS
+                ) != PackageManager.PERMISSION_GRANTED
+            ) {
+                ActivityCompat.requestPermissions(
+                    this,
+                    arrayOf(Manifest.permission.POST_NOTIFICATIONS),
+                    PERMISSION_REQUEST_CODE
+                )
+                // 权限未授予，但仍尝试启动服务（可能无法显示通知）
+            }
+        }
+
+        // 2. 检查通知监听权限并绑定服务
+        if (NotificationAutoBookService.isNotificationListenerEnabled(this)) {
+            NotificationAutoBookService.ensureBound(applicationContext)
+            // 启动前台服务
+            NotificationListenerForegroundService.start(this)
+        } else {
+            // 引导用户开启通知监听权限
+            // 可以在首次启动时跳转到设置页面，或通过界面提示
+            // 这里只绑定服务，用户需要手动开启权限
+            NotificationAutoBookService.ensureBound(applicationContext)
+        }
+
+        val repository = AppDataRepository.get(applicationContext)
+        AutoBookTodoBadgeNotifier.sync(applicationContext, repository.data.value.autoBookTodos.size)
+        if (repository.data.value.settings.batteryOptimizationWhitelistEnabled) {
+            requestIgnoreBatteryOptimizations(oncePerActivity = true)
+        }
+    }
+
+    /**
+     * 请求忽略电池优化（可以在设置界面调用）
+     */
+    fun requestIgnoreBatteryOptimizations(oncePerActivity: Boolean = false) {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M && !isIgnoringBatteryOptimizations()) {
+            if (oncePerActivity && batteryOptimizationRequestShown) return
+            batteryOptimizationRequestShown = true
+            val intent = Intent(Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS).apply {
+                data = Uri.parse("package:$packageName")
+            }
+            startActivity(intent)
+        }
+    }
+
+    fun isIgnoringBatteryOptimizations(): Boolean {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.M) return true
+        val powerManager = getSystemService(POWER_SERVICE) as android.os.PowerManager
+        return powerManager.isIgnoringBatteryOptimizations(packageName)
     }
 }
 

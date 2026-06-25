@@ -220,6 +220,7 @@ class JsonFileStorage(private val context: Context) {
         put("lastMemberId", settings.lastMemberId)
         put("recentCategoryIds", JSONArray().apply { settings.recentCategoryIds.forEach { put(it) } })
         put("currencySymbol", settings.currencySymbol)
+        put("batteryOptimizationWhitelistEnabled", settings.batteryOptimizationWhitelistEnabled)
     }
 
     private fun decode(json: JSONObject) = AppData(
@@ -328,7 +329,8 @@ class JsonFileStorage(private val context: Context) {
         lastIncomeCategoryId = json.optNullableString("lastIncomeCategoryId"),
         lastMemberId = json.optNullableString("lastMemberId"),
         recentCategoryIds = json.optJSONArray("recentCategoryIds").stringList(),
-        currencySymbol = json.optString("currencySymbol", "￥")
+        currencySymbol = json.optString("currencySymbol", "￥"),
+        batteryOptimizationWhitelistEnabled = json.optBoolean("batteryOptimizationWhitelistEnabled", true)
     )
 
     private fun <T> JSONArray?.toList(mapper: (JSONObject) -> T): List<T> {

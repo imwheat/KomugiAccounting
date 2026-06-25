@@ -1,7 +1,5 @@
 package com.komugi.komugiaccounting.ui.automation
 
-import android.content.ComponentName
-import android.content.Context
 import android.content.Intent
 import android.provider.Settings
 import androidx.activity.compose.BackHandler
@@ -219,7 +217,9 @@ private fun NotificationListenerPermissionPrompt(): Boolean {
     val context = LocalContext.current
     var checkToken by rememberSaveable { mutableStateOf(0) }
     var showPermissionDialog by rememberSaveable { mutableStateOf(false) }
-    val listenerEnabled = remember(context, checkToken) { context.isNotificationListenerEnabled() }
+    val listenerEnabled = remember(context, checkToken) {
+        NotificationAutoBookService.isNotificationListenerEnabled(context)
+    }
 
     LaunchedEffect(Unit) {
         while (true) {
@@ -230,9 +230,7 @@ private fun NotificationListenerPermissionPrompt(): Boolean {
 
     LaunchedEffect(listenerEnabled) {
         if (listenerEnabled) {
-            android.service.notification.NotificationListenerService.requestRebind(
-                ComponentName(context, NotificationAutoBookService::class.java)
-            )
+            NotificationAutoBookService.ensureBound(context)
         } else {
             showPermissionDialog = true
         }
@@ -458,9 +456,7 @@ private fun AutoBookTestScreen(repository: AppDataRepository, onBack: () -> Unit
                                         )
                                     }
                                 message = if (service == null) {
-                                    android.service.notification.NotificationListenerService.requestRebind(
-                                        ComponentName(context, NotificationAutoBookService::class.java)
-                                    )
+                                    NotificationAutoBookService.ensureBound(context)
                                     "通知监听服务未连接，已请求重新连接。请等几秒后再读取；如果仍不行，关闭再重新开启通知使用权。"
                                 } else {
                                     "读取到 ${results.size} 条当前通知"
@@ -736,13 +732,4 @@ private fun AutomationFrequency.label(month: Int, day: Int): String = when (this
     AutomationFrequency.DAILY -> "每天"
     AutomationFrequency.MONTHLY -> "每月${day}号"
     AutomationFrequency.YEARLY -> "每年${month}月${day}号"
-}
-
-private fun Context.isNotificationListenerEnabled(): Boolean {
-    val enabledListeners = Settings.Secure.getString(contentResolver, "enabled_notification_listeners").orEmpty()
-    val target = ComponentName(this, NotificationAutoBookService::class.java)
-    return enabledListeners
-        .split(":")
-        .mapNotNull { ComponentName.unflattenFromString(it) }
-        .any { it.packageName == target.packageName && it.className == target.className }
 }

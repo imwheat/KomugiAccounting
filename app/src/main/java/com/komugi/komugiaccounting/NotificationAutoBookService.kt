@@ -2,10 +2,13 @@ package com.komugi.komugiaccounting
 
 import android.app.Notification
 import android.content.ComponentName
+import android.content.Context
+import android.content.Intent
 import android.os.Build
 import android.os.Bundle
 import android.os.Parcelable
 import android.service.notification.NotificationListenerService
+import android.provider.Settings
 import android.service.notification.StatusBarNotification
 import com.komugi.komugiaccounting.data.repository.AppDataRepository
 
@@ -24,6 +27,20 @@ class NotificationAutoBookService : NotificationListenerService() {
             val isClearable: Boolean,
             val iconResId: Int = 0
         )
+
+        fun isNotificationListenerEnabled(context: Context): Boolean {
+            val enabledListeners = Settings.Secure.getString(context.contentResolver, "enabled_notification_listeners").orEmpty()
+            val target = ComponentName(context, NotificationAutoBookService::class.java)
+            return enabledListeners
+                .split(":")
+                .mapNotNull { ComponentName.unflattenFromString(it) }
+                .any { it.packageName == target.packageName && it.className == target.className }
+        }
+
+        fun ensureBound(context: Context) {
+            if (!isNotificationListenerEnabled(context)) return
+            requestRebind(ComponentName(context, NotificationAutoBookService::class.java))
+        }
     }
 
     interface NotificationListener {
@@ -47,12 +64,24 @@ class NotificationAutoBookService : NotificationListenerService() {
     override fun onListenerConnected() {
         super.onListenerConnected()
         instance = this
+        // 启动前台服务以保持进程存活
+        NotificationListenerForegroundService.start(this)
     }
 
     override fun onListenerDisconnected() {
         instance = null
-        requestRebind(ComponentName(this, NotificationAutoBookService::class.java))
+        // 确保重新绑定
+        ensureBound(this)
+        // 不要停止前台服务，让它继续运行
         super.onListenerDisconnected()
+    }
+
+    override fun onTaskRemoved(rootIntent: Intent?) {
+        instance = null
+        ensureBound(this)
+        // 重启前台服务（如果需要）
+        NotificationListenerForegroundService.start(this)
+        super.onTaskRemoved(rootIntent)
     }
 
     override fun onNotificationPosted(sbn: StatusBarNotification) {

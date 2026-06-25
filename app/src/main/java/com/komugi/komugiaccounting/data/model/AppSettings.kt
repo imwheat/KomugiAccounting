@@ -6,5 +6,6 @@ data class AppSettings(
     val lastIncomeCategoryId: String? = null,
     val lastMemberId: String? = null,
     val recentCategoryIds: List<String> = emptyList(),
-    val currencySymbol: String = "￥"
+    val currencySymbol: String = "￥",
+    val batteryOptimizationWhitelistEnabled: Boolean = true
 )
