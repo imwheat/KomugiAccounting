@@ -7,8 +7,8 @@ import android.content.Intent
 import android.os.Build
 import android.os.Bundle
 import android.os.Parcelable
-import android.service.notification.NotificationListenerService
 import android.provider.Settings
+import android.service.notification.NotificationListenerService
 import android.service.notification.StatusBarNotification
 import com.komugi.komugiaccounting.data.repository.AppDataRepository
 
@@ -53,34 +53,31 @@ class NotificationAutoBookService : NotificationListenerService() {
     override fun onCreate() {
         super.onCreate()
         instance = this
+        NotificationListenerForegroundService.start(this)
     }
 
     override fun onDestroy() {
         instance = null
         listeners.clear()
+        NotificationKeepAlive.keepAlive(this, forceResetListener = true)
         super.onDestroy()
     }
 
     override fun onListenerConnected() {
         super.onListenerConnected()
         instance = this
-        // 启动前台服务以保持进程存活
         NotificationListenerForegroundService.start(this)
     }
 
     override fun onListenerDisconnected() {
         instance = null
-        // 确保重新绑定
-        ensureBound(this)
-        // 不要停止前台服务，让它继续运行
+        NotificationKeepAlive.keepAlive(this, forceResetListener = true)
         super.onListenerDisconnected()
     }
 
     override fun onTaskRemoved(rootIntent: Intent?) {
         instance = null
-        ensureBound(this)
-        // 重启前台服务（如果需要）
-        NotificationListenerForegroundService.start(this)
+        NotificationKeepAlive.keepAlive(this, forceResetListener = true)
         super.onTaskRemoved(rootIntent)
     }
 

@@ -11,16 +11,18 @@ import android.content.pm.PackageManager
 import android.os.Build
 import android.os.Bundle
 import androidx.annotation.RequiresPermission
+import androidx.core.content.ContextCompat
+import androidx.core.graphics.drawable.toBitmap
 import androidx.core.app.NotificationCompat
 import androidx.core.app.NotificationManagerCompat
 
 object AutoBookTodoBadgeNotifier {
-    private const val CHANNEL_ID = "auto_book_todo_badge_channel_v2"
+    private const val CHANNEL_ID = "auto_book_todo_badge_channel_v4"
     private const val CHANNEL_NAME = "自动记账待办"
     private const val NOTIFICATION_ID = 2001
 
     @RequiresPermission(Manifest.permission.POST_NOTIFICATIONS)
-    fun sync(context: Context, todoCount: Int) {
+    fun sync(context: Context, todoCount: Int, alert: Boolean = false) {
         val appContext = context.applicationContext
         val badgeCount = todoCount.coerceAtLeast(0)
 
@@ -34,28 +36,30 @@ object AutoBookTodoBadgeNotifier {
             createChannel(appContext)
             NotificationManagerCompat.from(appContext).notify(
                 NOTIFICATION_ID,
-                createNotification(appContext, badgeCount)
+                createNotification(appContext, badgeCount, alert)
             )
         }
 
         updateLauncherBadgeCompat(appContext, badgeCount)
     }
 
-    private fun createNotification(context: Context, todoCount: Int) =
+    private fun createNotification(context: Context, todoCount: Int, alert: Boolean) =
         NotificationCompat.Builder(context, CHANNEL_ID)
-            .setSmallIcon(android.R.drawable.ic_dialog_info)
+            .setSmallIcon(R.drawable.ic_notification_launcher)
+            .setLargeIcon(ContextCompat.getDrawable(context, R.mipmap.ic_launcher)?.toBitmap())
             .setContentTitle("自动记账待办")
             .setContentText("还有 ${todoCount.badgeText()} 个待办未处理")
             .setContentIntent(createPendingIntent(context))
             .setNumber(todoCount.coerceAtMost(99))
             .setBadgeIconType(NotificationCompat.BADGE_ICON_SMALL)
-            .setPriority(NotificationCompat.PRIORITY_DEFAULT)
+            .setPriority(if (alert) NotificationCompat.PRIORITY_DEFAULT else NotificationCompat.PRIORITY_LOW)
             .setCategory(NotificationCompat.CATEGORY_REMINDER)
-            .setOnlyAlertOnce(true)
-            .setSilent(true)
-            .setLocalOnly(true)
+            .setOnlyAlertOnce(!alert)
+            .setSilent(!alert)
+            .setOngoing(true)
             .setAutoCancel(false)
-            .setShowWhen(false)
+            .setShowWhen(alert)
+            .setSubText(todoCount.badgeText())
             .build()
 
     private fun createPendingIntent(context: Context): PendingIntent {
@@ -77,11 +81,10 @@ object AutoBookTodoBadgeNotifier {
             CHANNEL_NAME,
             NotificationManager.IMPORTANCE_DEFAULT
         ).apply {
-            description = "用于在桌面图标显示未处理自动记账待办数量"
+            description = "用于在桌面图标和通知栏显示未处理自动记账待办数量"
             setShowBadge(true)
             enableLights(false)
             enableVibration(false)
-            setSound(null, null)
         }
         val manager = context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
         manager.createNotificationChannel(channel)
@@ -98,6 +101,9 @@ object AutoBookTodoBadgeNotifier {
         val displayCount = todoCount.coerceIn(0, 99)
         val launcher = ComponentName(context, SplashActivity::class.java)
         updateSamsungAndCommonBadger(context, launcher, displayCount)
+        updateXiaomi(context, launcher, displayCount)
+        updateOppo(context, displayCount)
+        updateVivo(context, launcher, displayCount)
         updateSony(context, launcher, displayCount)
         updateHtc(context, launcher, displayCount)
         updateNova(context, launcher, displayCount)
@@ -119,6 +125,39 @@ object AutoBookTodoBadgeNotifier {
                 putExtra("badge_count", count)
                 putExtra("badge_count_package_name", launcher.packageName)
                 putExtra("badge_count_class_name", launcher.className)
+            }
+        )
+    }
+
+    private fun updateXiaomi(context: Context, launcher: ComponentName, count: Int) {
+        sendBadgeBroadcast(
+            context,
+            Intent("android.intent.action.APPLICATION_MESSAGE_UPDATE").apply {
+                putExtra("android.intent.extra.update_application_component_name", launcher.flattenToShortString())
+                putExtra("android.intent.extra.update_application_message_text", if (count <= 0) "" else count.badgeText())
+            }
+        )
+    }
+
+    private fun updateOppo(context: Context, count: Int) {
+        sendBadgeBroadcast(
+            context,
+            Intent("com.oppo.unsettledevent").apply {
+                putExtra("pakeageName", context.packageName)
+                putExtra("packageName", context.packageName)
+                putExtra("number", count)
+                putExtra("upgradeNumber", count)
+            }
+        )
+    }
+
+    private fun updateVivo(context: Context, launcher: ComponentName, count: Int) {
+        sendBadgeBroadcast(
+            context,
+            Intent("launcher.action.CHANGE_APPLICATION_NOTIFICATION_NUM").apply {
+                putExtra("packageName", launcher.packageName)
+                putExtra("className", launcher.className)
+                putExtra("notificationNum", count)
             }
         )
     }

@@ -1,9 +1,13 @@
 package com.komugi.komugiaccounting.ui.settings
 
+import android.Manifest
 import android.content.Context
+import android.content.ContextWrapper
+import android.content.pm.PackageManager
 import android.os.Build
 import android.os.PowerManager
 import androidx.activity.compose.BackHandler
+import androidx.core.content.ContextCompat
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -33,6 +37,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.komugi.komugiaccounting.MainActivity
+import com.komugi.komugiaccounting.NotificationKeepAlive
 import com.komugi.komugiaccounting.data.model.ThemeMode
 import com.komugi.komugiaccounting.data.repository.AppDataRepository
 import com.komugi.komugiaccounting.ui.category.CategoryScreen
@@ -83,9 +88,16 @@ private fun SettingsHomeScreen(
     val data by repository.data.collectAsState()
     val context = LocalContext.current
     var batteryStatusToken by rememberSaveable { mutableStateOf(0) }
+    var notificationStatusToken by rememberSaveable { mutableStateOf(0) }
     var showBatteryDisableDialog by rememberSaveable { mutableStateOf(false) }
     val batteryWhitelisted = remember(context, batteryStatusToken) {
         context.isIgnoringBatteryOptimizations()
+    }
+    val postNotificationsGranted = remember(context, notificationStatusToken) {
+        context.isPostNotificationsGranted()
+    }
+    val appNotificationsEnabled = remember(context, notificationStatusToken) {
+        NotificationKeepAlive.isNotificationChannelEnabled(context)
     }
 
     Column(
@@ -157,6 +169,46 @@ private fun SettingsHomeScreen(
                     }
                 ) {
                     Text(if (batteryWhitelisted) "重新检查白名单状态" else "加入电池优化白名单")
+                }
+                OutlinedButton(
+                    modifier = Modifier.fillMaxWidth(),
+                    onClick = { NotificationKeepAlive.openAutoStartSettings(context) }
+                ) {
+                    Text("自启动权限")
+                }
+                OutlinedButton(
+                    modifier = Modifier.fillMaxWidth(),
+                    onClick = { NotificationKeepAlive.openBackgroundCleanupSettings(context) }
+                ) {
+                    Text("加入一键清理白名单")
+                }
+                OutlinedButton(
+                    modifier = Modifier.fillMaxWidth(),
+                    onClick = {
+                        NotificationKeepAlive.keepAlive(context, forceResetListener = true)
+                        NotificationKeepAlive.openNotificationListenerSettings(context)
+                    }
+                ) {
+                    Text("修复通知监听连接")
+                }
+                OutlinedButton(
+                    modifier = Modifier.fillMaxWidth(),
+                    onClick = {
+                        if (!postNotificationsGranted) {
+                            context.findMainActivity()?.requestPostNotificationsPermission()
+                        } else {
+                            NotificationKeepAlive.openAppNotificationSettings(context)
+                        }
+                        notificationStatusToken += 1
+                    }
+                ) {
+                    Text(
+                        when {
+                            !postNotificationsGranted -> "申请通知权限"
+                            !appNotificationsEnabled -> "打开系统通知开关"
+                            else -> "通知权限已开启"
+                        }
+                    )
                 }
             }
         }
@@ -230,4 +282,16 @@ private fun Context.isIgnoringBatteryOptimizations(): Boolean {
     if (Build.VERSION.SDK_INT < Build.VERSION_CODES.M) return true
     val powerManager = getSystemService(Context.POWER_SERVICE) as PowerManager
     return powerManager.isIgnoringBatteryOptimizations(packageName)
+}
+
+private fun Context.isPostNotificationsGranted(): Boolean {
+    if (Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU) return true
+    return ContextCompat.checkSelfPermission(this, Manifest.permission.POST_NOTIFICATIONS) ==
+        PackageManager.PERMISSION_GRANTED
+}
+
+private fun Context.findMainActivity(): MainActivity? = when (this) {
+    is MainActivity -> this
+    is ContextWrapper -> baseContext.findMainActivity()
+    else -> null
 }

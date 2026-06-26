@@ -1,6 +1,7 @@
 ﻿package com.komugi.komugiaccounting.data.repository
 
 import android.content.Context
+import com.komugi.komugiaccounting.AppVisibilityTracker
 import com.komugi.komugiaccounting.AutoBookTodoBadgeNotifier
 import com.komugi.komugiaccounting.data.model.AppData
 import com.komugi.komugiaccounting.data.model.AppSettings
@@ -418,7 +419,9 @@ class AppDataRepository private constructor(context: Context) {
     }
 
     fun handleNotification(title: String, text: String, postTime: Long) {
-        update { current ->
+        var shouldAlertTodo = false
+        var nextTodoCount = _data.value.autoBookTodos.size
+        update(syncBadge = false) { current ->
             val alreadyLogged = current.autoBookNotificationLogs.any {
                 it.title == title && it.text == text && it.dateTime == postTime
             }
@@ -430,10 +433,17 @@ class AppDataRepository private constructor(context: Context) {
                 dateTime = postTime
             )
             val newTodos = matchAutoBookTodos(current.autoBookRules, title, text, postTime)
+            shouldAlertTodo = newTodos.isNotEmpty()
+            nextTodoCount = current.autoBookTodos.size + newTodos.size
             current.copy(
                 autoBookNotificationLogs = (listOf(log) + current.autoBookNotificationLogs).take(MAX_NOTIFICATION_LOGS),
                 autoBookTodos = current.autoBookTodos + newTodos
             )
+        }
+        if (shouldAlertTodo && !AppVisibilityTracker.isForeground) {
+            syncAutoBookTodoBadge(nextTodoCount, alert = true)
+        } else {
+            syncAutoBookTodoBadge(nextTodoCount)
         }
     }
 
@@ -642,15 +652,15 @@ class AppDataRepository private constructor(context: Context) {
         syncAutoBookTodoBadge(imported.autoBookTodos.size)
     }
 
-    private fun update(block: (AppData) -> AppData) {
+    private fun update(syncBadge: Boolean = true, block: (AppData) -> AppData) {
         val next = block(_data.value)
         _data.value = next
         storage.saveData(next)
-        syncAutoBookTodoBadge(next.autoBookTodos.size)
+        if (syncBadge) syncAutoBookTodoBadge(next.autoBookTodos.size)
     }
 
-    private fun syncAutoBookTodoBadge(todoCount: Int) {
-        AutoBookTodoBadgeNotifier.sync(appContext, todoCount)
+    private fun syncAutoBookTodoBadge(todoCount: Int, alert: Boolean = false) {
+        AutoBookTodoBadgeNotifier.sync(appContext, todoCount, alert)
     }
 
     private fun AutomationRule.isDueToday(now: Long): Boolean {

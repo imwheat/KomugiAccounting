@@ -57,6 +57,7 @@ class MainActivity : ComponentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        AppVisibilityTracker.markForeground()
 
         // 初始化通知监听服务和前台服务
         initializeServices()
@@ -78,8 +79,14 @@ class MainActivity : ComponentActivity() {
 
     override fun onResume() {
         super.onResume()
+        AppVisibilityTracker.markForeground()
         // 每次恢复时确保服务在运行
         initializeServices()
+    }
+
+    override fun onPause() {
+        AppVisibilityTracker.markBackground()
+        super.onPause()
     }
 
     override fun onRequestPermissionsResult(
@@ -101,32 +108,9 @@ class MainActivity : ComponentActivity() {
      */
     private fun initializeServices() {
         // 1. 检查并请求通知权限（Android 13+）
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-            if (ContextCompat.checkSelfPermission(
-                    this,
-                    Manifest.permission.POST_NOTIFICATIONS
-                ) != PackageManager.PERMISSION_GRANTED
-            ) {
-                ActivityCompat.requestPermissions(
-                    this,
-                    arrayOf(Manifest.permission.POST_NOTIFICATIONS),
-                    PERMISSION_REQUEST_CODE
-                )
-                // 权限未授予，但仍尝试启动服务（可能无法显示通知）
-            }
-        }
+        requestPostNotificationsPermission()
 
-        // 2. 检查通知监听权限并绑定服务
-        if (NotificationAutoBookService.isNotificationListenerEnabled(this)) {
-            NotificationAutoBookService.ensureBound(applicationContext)
-            // 启动前台服务
-            NotificationListenerForegroundService.start(this)
-        } else {
-            // 引导用户开启通知监听权限
-            // 可以在首次启动时跳转到设置页面，或通过界面提示
-            // 这里只绑定服务，用户需要手动开启权限
-            NotificationAutoBookService.ensureBound(applicationContext)
-        }
+        NotificationKeepAlive.keepAlive(applicationContext)
 
         val repository = AppDataRepository.get(applicationContext)
         AutoBookTodoBadgeNotifier.sync(applicationContext, repository.data.value.autoBookTodos.size)
@@ -153,6 +137,22 @@ class MainActivity : ComponentActivity() {
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.M) return true
         val powerManager = getSystemService(POWER_SERVICE) as android.os.PowerManager
         return powerManager.isIgnoringBatteryOptimizations(packageName)
+    }
+
+    fun requestPostNotificationsPermission(): Boolean {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU) return true
+        if (
+            ContextCompat.checkSelfPermission(this, Manifest.permission.POST_NOTIFICATIONS) ==
+            PackageManager.PERMISSION_GRANTED
+        ) {
+            return true
+        }
+        ActivityCompat.requestPermissions(
+            this,
+            arrayOf(Manifest.permission.POST_NOTIFICATIONS),
+            PERMISSION_REQUEST_CODE
+        )
+        return false
     }
 }
 

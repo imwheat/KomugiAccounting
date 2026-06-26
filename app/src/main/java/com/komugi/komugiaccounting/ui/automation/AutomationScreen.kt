@@ -41,6 +41,7 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.komugi.komugiaccounting.NotificationAutoBookService
+import com.komugi.komugiaccounting.NotificationKeepAlive
 import com.komugi.komugiaccounting.data.model.AutoBookNotificationLog
 import com.komugi.komugiaccounting.data.model.AutoBookRule
 import com.komugi.komugiaccounting.data.model.AutoBookTodo
@@ -230,7 +231,7 @@ private fun NotificationListenerPermissionPrompt(): Boolean {
 
     LaunchedEffect(listenerEnabled) {
         if (listenerEnabled) {
-            NotificationAutoBookService.ensureBound(context)
+            NotificationKeepAlive.keepAlive(context, forceResetListener = true)
         } else {
             showPermissionDialog = true
         }
@@ -456,7 +457,7 @@ private fun AutoBookTestScreen(repository: AppDataRepository, onBack: () -> Unit
                                         )
                                     }
                                 message = if (service == null) {
-                                    NotificationAutoBookService.ensureBound(context)
+                                    NotificationKeepAlive.keepAlive(context, forceResetListener = true)
                                     "通知监听服务未连接，已请求重新连接。请等几秒后再读取；如果仍不行，关闭再重新开启通知使用权。"
                                 } else {
                                     "读取到 ${results.size} 条当前通知"
